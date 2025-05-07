@@ -1,6 +1,10 @@
 [package]
 name = "eris"
-version = "0.1.0"
+version = "0.7.0"
 edition = "2021"
+authors = ["Samarth Kulshrestha <samarthkulshrestha@protonmail.com>"]
+description = "An ergonomic, expressive, and opinionated programming language"
+license = "MIT"
 
 [dependencies]
+logos = "0.15.0"
