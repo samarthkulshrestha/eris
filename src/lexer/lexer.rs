@@ -12,98 +12,82 @@ pub enum Token {
     // Keywords
     #[token("mut")]
     Mut,
-
     #[token("int")]
     Int,
-
+    #[token("bool")]
+    Bool,
+    #[token("char")]
+    Char,
+    #[token("float")]
+    Float,
     #[token("str")]
     Str,
-
     #[token("arr")]
     Arr,
-
     #[token("if")]
     If,
-
     #[token("else")]
     Else,
-
     #[token("return")]
     Return,
+    #[token("true")]
+    True,
+    #[token("false")]
+    False,
 
     // Operators
     #[token(":=")]
     DeclareAssign,
-
     #[token("=")]
     Assign,
-
     #[token("+")]
     Plus,
-
     #[token("-")]
     Minus,
-
     #[token("*")]
     Multiply,
-
     #[token("/")]
     Divide,
-
     #[token("%")]
     Modulo,
 
     // Comparison operators
     #[token("==")]
     Equal,
-
     #[token("!=")]
     NotEqual,
-
     #[token("<")]
     LessThan,
-
     #[token("<=")]
     LessEqual,
-
     #[token(">")]
     GreaterThan,
-
     #[token(">=")]
     GreaterEqual,
 
     // Logical operators
     #[token("&&")]
     And,
-
     #[token("||")]
     Or,
-
     #[token("!")]
     Not,
 
     // Delimiters
     #[token("(")]
     LParen,
-
     #[token(")")]
     RParen,
-
     #[token("{")]
     LBrace,
-
     #[token("}")]
     RBrace,
-
     #[token("[")]
     LBracket,
-
     #[token("]")]
     RBracket,
-
     #[token(";")]
     Semicolon,
-
     #[token(",")]
     Comma,
 
@@ -118,6 +102,14 @@ pub enum Token {
         content.to_string()
     })]
     StringLit(String),
+
+    #[regex(r#"'([^'\\]|\\[nrt'\\])'"#, |lex| {
+        let slice = lex.slice();
+        // Remove quotes to get the actual string content
+        let content = &slice[1..slice.len()-1];
+        content.chars().next().unwrap()
+    })]
+    CharLit(char),
 
     #[regex(r"[0-9]+\.[0-9]+", |lex| {
         lex.slice().parse::<f64>().ok()
@@ -145,10 +137,16 @@ impl fmt::Display for Token {
             Token::IntLit(i) => write!(f, "Integer: {}", i),
             Token::FloatLit(fl) => write!(f, "Float: {}", fl),
             Token::StringLit(s) => write!(f, "String: \"{}\"", s),
+            Token::CharLit(c) => write!(f, "Char: \'{}\'", c),
+            Token::True => write!(f, "Bool: true"),
+            Token::False => write!(f, "Bool: false"),
             Token::InvalidIdent(s) => write!(f, "Invalid identifier: {}", s),
             Token::Mut => write!(f, "Keyword: mut"),
             Token::Int => write!(f, "Keyword: int"),
+            Token::Bool => write!(f, "Keyword: bool"),
             Token::Str => write!(f, "Keyword: str"),
+            Token::Char => write!(f, "Keyword: char"),
+            Token::Float => write!(f, "Keyword: float"),
             Token::Arr => write!(f, "Keyword: arr"),
             Token::If => write!(f, "Keyword: if"),
             Token::Else => write!(f, "Keyword: else"),
@@ -176,6 +174,7 @@ impl fmt::Display for LexerError {
 
 impl Error for LexerError {}
 
+#[derive(Debug, Clone)]
 pub struct SourceLocation {
     pub line: usize,
     pub column: usize,

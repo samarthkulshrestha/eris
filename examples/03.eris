@@ -1,0 +1,62 @@
+-- This is a simple Eris program to test the parser
+
+-- Variable declarations
+int x := 10;
+mut int y := 20;
+y = y * 2;  -- Reassignment
+
+-- A function that calculates factorial
+int factorial(int n) {
+    if n <= 1 {
+        return 1;
+    } else {
+        return n * factorial(n - 1);
+    }
+}
+
+-- Using a block expression
+int result := {
+    int temp := factorial(5);
+    temp * 2
+};
+
+-- Multiple bindings
+int a, b, c := 1, 2, 3;
+
+-- Tuple pattern binding
+(str name, int age) := ("Alice", 30);
+
+-- Array declaration
+arr[int] numbers := [1, 2, 3, 4, 5];
+
+-- Using if expression
+int max := if a > b { a } else { b };
+
+-- Print the result
+-- This would be a function call in the real language
+-- print(result);
+
+-- if x > 10 {
+--     int z := 20;
+-- }
+
+-- add := (int a, int b) -> int {
+--
+--   }
+--
+-- fn add(a: int, b: int) -> int {
+--
+--   }
+--
+-- int add(int a, int b) {
+--
+--   }
+--
+-- mut y: float = 10
+--
+-- int[10]
+-- [int 10]
+
+-- mut int y := 10 * (1 + 20);
+-- mut int y := 10 * (1 + 20 * 10);
+

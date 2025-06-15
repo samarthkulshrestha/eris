@@ -1,9 +1,11 @@
 use std::fs;
 use std::error::Error;
+use std::process;
 
 pub mod lexer;
+pub mod parser;
 
-use crate::lexer::Lexer;
+use crate::parser::Parser;
 
 pub fn preprocess_multi_line_comments(source: &str) -> String {
     // Simple state machine to remove multi-line comments
@@ -35,37 +37,57 @@ pub fn preprocess_multi_line_comments(source: &str) -> String {
 }
 
 pub fn process_file(filename: &str) -> Result<(), Box<dyn Error>> {
-    println!("Processing file: {}", filename);
+    // println!("Processing file: {}", filename);
 
     let raw_source = fs::read_to_string(filename)?;
-    println!("Source code loaded:");
-    println!("{}\n", raw_source);
+    // println!("Source code loaded:");
+    // println!("{}", raw_source);
 
     // Preprocess source to handle multi-line comments
     let source = preprocess_multi_line_comments(&raw_source);
 
-    let mut lexer = Lexer::new(&source);
-    let tokens = lexer.tokenize();
+    // let mut lexer = Lexer::new(&source);
+    // let tokens = lexer.tokenize();
 
-    println!("Tokens:");
-    let mut has_errors = false;
+    // println!("Tokens:");
+    // let mut has_errors = false;
+    //
+    // for (idx, token_result) in tokens.iter().enumerate() {
+    //     match token_result {
+    //         Ok((token, location)) => {
+    //             println!("{}: {} (at {}:{})", idx, token, location.line, location.column);
+    //         },
+    //         Err(err) => {
+    //             eprintln!("{}", err);
+    //             has_errors = true;
+    //         }
+    //     }
+    // }
+    //
+    // if has_errors {
+    //     println!("\nLexing completed with errors.");
+    // } else {
+    //     println!("\nLexing completed successfully.");
+    // }
 
-    for (idx, token_result) in tokens.iter().enumerate() {
-        match token_result {
-            Ok((token, location)) => {
-                println!("{}: {} (at {}:{})", idx, token, location.line, location.column);
-            },
-            Err(err) => {
-                eprintln!("{}", err);
-                has_errors = true;
-            }
+    // Parsing
+    let mut parser = match Parser::new(&source) {
+        Ok(p) => p,
+        Err(err) => {
+            eprintln!("Failed to initialize parser: {}", err);
+            process::exit(1);
         }
-    }
+    };
 
-    if has_errors {
-        println!("\nLexing completed with errors.");
-    } else {
-        println!("\nLexing completed successfully.");
+    match parser.parse_program() {
+        Ok(program) => {
+            // println!("\nParsing successful!");
+            println!("AST: {:#?}", program);
+        },
+        Err(err) => {
+            eprintln!("Parse error: {:?}", err);
+            process::exit(1);
+        }
     }
 
     Ok(())

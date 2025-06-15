@@ -6,5 +6,10 @@ authors = ["Samarth Kulshrestha <samarthkulshrestha@protonmail.com>"]
 description = "An ergonomic, expressive, and opinionated programming language"
 license = "MIT"
 
+[profile.dev]
+debug = true
+debug-assertions = true
+overflow-checks = true
+
 [dependencies]
 logos = "0.15.0"
