@@ -1,4 +1,5 @@
 use std::ops::Add;
+// use crate::lexer::{SourceLocation};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -59,7 +60,7 @@ pub enum Expr {
     CharLit(char),
     BoolTrue,
     BoolFalse,
-    Identifier(Identifier),
+    IdentExpr(Identifier),
 
     UnaryExpr {
         op: UnaryOp,
@@ -73,7 +74,7 @@ pub enum Expr {
     ParenExpr(Box<Expr>),
     TupleExpr(Vec<Expr>),
     BlockExpr {
-        stmts: Vec<Stmt>,
+        statements: Vec<Stmt>,
         ret: Option<Box<Expr>>
     },
     IfExpr {
@@ -83,7 +84,7 @@ pub enum Expr {
         else_branch: Option<Box<Expr>>,
     },
     FunctionCall {
-        function: Box<Expr>,
+        function: Box<Identifier>,
         arguments: Vec<Expr>,
     },
 }
@@ -152,36 +153,6 @@ impl Add<i32> for Precedence {
         }
     }
 }
-
-// impl Precedence {
-//     pub fn higher(self) -> Self {
-//         match self {
-//             Precedence::Lowest => Precedence::Equality,
-//             Precedence::Equality => Precedence::Comparison,
-//             Precedence::Comparison => Precedence::Sum,
-//             Precedence::Sum => Precedence::Product,
-//             Precedence::Product => Precedence::Group,
-//             Precedence::Group => Precedence::Prefix,
-//             Precedence::Prefix => Precedence::Prefix,
-//         }
-//     }
-//
-//     pub fn increment_by(self, levels: i32) -> Self {
-//         let current = self as i32;
-//         let new_level = (current + levels).clamp(0, 6);
-//
-//         match new_level {
-//             0 => Precedence::Lowest,
-//             1 => Precedence::Equality,
-//             2 => Precedence::Comparison,
-//             3 => Precedence::Sum,
-//             4 => Precedence::Product,
-//             5 => Precedence::Group,
-//             6 => Precedence::Prefix,
-//             _ => unreachable!(),
-//         }
-//     }
-// }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Identifier {

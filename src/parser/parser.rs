@@ -2,7 +2,7 @@ use crate::lexer::{Lexer, LexerError, SourceLocation, Token};
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
-use crate::parser::ast::{Expr, Identifier, Program, Stmt, Type, BinOp, Precedence};
+use crate::parser::ast::{BinOp, Expr, Identifier, Precedence, Program, Stmt, Type};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -103,7 +103,7 @@ impl Parser {
         }
     }
 
-    fn peek_is(&mut self, tokens: &[Token]) -> bool {
+    fn _peek_is(&mut self, tokens: &[Token]) -> bool {
         if let Some((token, _)) = self.peek() {
             tokens.iter().any(|t| token_matches(t, token))
         } else {
@@ -171,7 +171,7 @@ impl Parser {
                     // Parse as a variable
                     self.parse_variable_declaration()
                 }
-            },
+            }
 
             Some((Token::Mut, _)) => self.parse_variable_declaration(),
 
@@ -189,13 +189,16 @@ impl Parser {
                         self.advance(); // consume '='
                         let value = self.parse_expression()?;
                         self.expect(&[Token::Semicolon])?;
-                        Ok(Stmt::Assignment { target: expr, value })
+                        Ok(Stmt::Assignment {
+                            target: expr,
+                            value,
+                        })
                     } else {
                         self.expect(&[Token::Semicolon])?;
                         Ok(Stmt::ExprStmt(expr))
                     }
                 }
-            },
+            }
 
             Some((Token::Return, _)) => {
                 self.advance(); // consume 'return'
@@ -206,14 +209,14 @@ impl Parser {
                 };
                 self.expect(&[Token::Semicolon])?;
                 Ok(Stmt::ReturnStmt(expr))
-            },
+            }
 
             Some((_, _loc)) => {
                 // Try to parse it as an expression statement
                 let expr = self.parse_expression()?;
                 self.expect(&[Token::Semicolon])?;
                 Ok(Stmt::ExprStmt(expr))
-            },
+            }
 
             None => Err(ParseError::UnexpectedToken {
                 expected: "statement".to_string(),
@@ -398,9 +401,14 @@ impl Parser {
         match &self.current_token {
             Some((Token::LParen, _)) => Some(Precedence::Group),
             Some((Token::Equal, _)) | Some((Token::NotEqual, _)) => Some(Precedence::Equality),
-            Some((Token::GreaterThan, _)) | Some((Token::GreaterEqual, _)) | Some((Token::LessThan, _)) | Some((Token::LessEqual, _)) => Some(Precedence::Comparison),
+            Some((Token::GreaterThan, _))
+            | Some((Token::GreaterEqual, _))
+            | Some((Token::LessThan, _))
+            | Some((Token::LessEqual, _)) => Some(Precedence::Comparison),
             Some((Token::Plus, _)) | Some((Token::Minus, _)) => Some(Precedence::Sum),
-            Some((Token::Multiply, _)) | Some((Token::Divide, _)) | Some((Token::Modulo, _)) => Some(Precedence::Product),
+            Some((Token::Multiply, _)) | Some((Token::Divide, _)) | Some((Token::Modulo, _)) => {
+                Some(Precedence::Product)
+            }
             Some((Token::And, _)) | Some((Token::Or, _)) => Some(Precedence::Lowest),
             _ => None,
         }
@@ -411,60 +419,62 @@ impl Parser {
             Some((Token::Plus, _)) => {
                 self.advance();
                 BinOp::Add
-            },
+            }
             Some((Token::Minus, _)) => {
                 self.advance();
                 BinOp::Sub
-            },
+            }
             Some((Token::Multiply, _)) => {
                 self.advance();
                 BinOp::Mul
-            },
+            }
             Some((Token::Divide, _)) => {
                 self.advance();
                 BinOp::Div
-            },
+            }
             Some((Token::Modulo, _)) => {
                 self.advance();
                 BinOp::Rem
-            },
+            }
             Some((Token::Equal, _)) => {
                 self.advance();
                 BinOp::Eq
-            },
+            }
             Some((Token::NotEqual, _)) => {
                 self.advance();
                 BinOp::Ne
-            },
+            }
             Some((Token::LessThan, _)) => {
                 self.advance();
                 BinOp::Lt
-            },
+            }
             Some((Token::LessEqual, _)) => {
                 self.advance();
                 BinOp::Le
-            },
+            }
             Some((Token::GreaterThan, _)) => {
                 self.advance();
                 BinOp::Gt
-            },
+            }
             Some((Token::GreaterEqual, _)) => {
                 self.advance();
                 BinOp::Ge
-            },
+            }
             Some((Token::And, _)) => {
                 self.advance();
                 BinOp::LAnd
-            },
+            }
             Some((Token::Or, _)) => {
                 self.advance();
                 BinOp::LOr
-            },
-            _ => return Err(ParseError::UnexpectedToken {
-                expected: "binary operator".to_string(),
-                found: self.current_token.as_ref().map(|(t, _)| t.clone()),
-                location: self.current_token.as_ref().map(|(_, l)| l.clone()),
-            }),
+            }
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "binary operator".to_string(),
+                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    location: self.current_token.as_ref().map(|(_, l)| l.clone()),
+                })
+            }
         };
 
         Ok(op)
@@ -523,13 +533,13 @@ impl Parser {
                     self.expect(&[Token::RParen])?;
 
                     Ok(Expr::FunctionCall {
-                        function: Box::new(Expr::Identifier(Identifier { name: id_name })),
+                        function: Box::new(Identifier { name: id_name }),
                         arguments,
                     })
                 } else {
-                    Ok(Expr::Identifier(Identifier { name: id_name }))
+                    Ok(Expr::IdentExpr(Identifier { name: id_name }))
                 }
-            },
+            }
 
             Some((Token::LParen, _)) => {
                 self.advance(); // consume '('
@@ -561,11 +571,9 @@ impl Parser {
                     self.expect(&[Token::RParen])?;
                     Ok(Expr::ParenExpr(Box::new(expr)))
                 }
-            },
+            }
 
-            Some((Token::LBrace, _)) => {
-                self.parse_block_expression()
-            },
+            Some((Token::LBrace, _)) => self.parse_block_expression(),
 
             Some((Token::If, _)) => {
                 self.advance(); // consume 'if'
@@ -605,7 +613,7 @@ impl Parser {
                     then_branch,
                     else_branch,
                 })
-            },
+            }
 
             _ => Err(ParseError::UnexpectedToken {
                 expected: "expr".to_string(),
@@ -639,19 +647,22 @@ impl Parser {
 
         self.expect(&[Token::RBrace])?;
 
-        Ok(Expr::BlockExpr { stmts: statements, ret: final_expr})
+        Ok(Expr::BlockExpr {
+            statements,
+            ret: final_expr,
+        })
     }
 
     fn is_expression_start(&self) -> bool {
         match &self.current_token {
-            Some((Token::IntLit(_), _)) |
-            Some((Token::FloatLit(_), _)) |
-            Some((Token::StringLit(_), _)) |
-            Some((Token::Ident(_), _)) |
-            Some((Token::LParen, _)) |
-            Some((Token::LBrace, _)) |
-            Some((Token::LBracket, _)) |
-            Some((Token::If, _)) => true,
+            Some((Token::IntLit(_), _))
+            | Some((Token::FloatLit(_), _))
+            | Some((Token::StringLit(_), _))
+            | Some((Token::Ident(_), _))
+            | Some((Token::LParen, _))
+            | Some((Token::LBrace, _))
+            | Some((Token::LBracket, _))
+            | Some((Token::If, _)) => true,
             _ => false,
         }
     }
