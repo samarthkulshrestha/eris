@@ -9,21 +9,44 @@ use crate::parser::ast::{
 };
 
 pub struct Analyzer {
-    scope: Scope,
+    scopes: Vec<Scope>,
     errors: Vec<AnalyzeError>,
 }
 
 impl Analyzer {
     pub fn new() -> Self {
         Analyzer {
-            scope: Scope::default(),
+            scopes: vec![Scope::default()],
             errors: Vec::new(),
         }
     }
 
+    fn enter_scope(&mut self) {
+        self.scopes.push(Scope::default());
+    }
+
+    fn exit_scope(&mut self) {
+        self.scopes.pop();
+    }
+
+    fn declare(&mut self, name: &str, symbol: Symbol) -> Result<(), String> {
+        self.scopes.last_mut().unwrap().declare(name, symbol)
+    }
+
+    fn find_symbol(&self, name: &str) -> Option<&Symbol> {
+        for scope in self.scopes.iter().rev() {
+            if let Some(symbol) = scope.find(name) {
+                return Some(symbol);
+            }
+        }
+        None
+    }
+
+    
+
     pub fn analyze_program(&mut self, program: &Program) -> Result<(), Vec<AnalyzeError>> {
         for statement in &program.statements {
-            self.analyze_statement(statement);
+            self.analyze_statement(statement, None);
         }
 
         if self.errors.is_empty() {
@@ -33,7 +56,7 @@ impl Analyzer {
         }
     }
 
-    fn analyze_statement(&mut self, statement: &Stmt) {
+    fn analyze_statement(&mut self, statement: &Stmt, expected_return_type: Option<TypeKind>) {
         match &statement.kind {
             StmtKind::VarDecl {
                 mutable,
@@ -41,7 +64,7 @@ impl Analyzer {
                 ident,
                 initializer,
             } => {
-                let init_type = self.analyze_expression(initializer);
+                let init_type = self.analyze_expression(initializer, None);
                 let var_type = typ.as_ref().map(|t| t.kind.clone());
 
                 if let Some(var_type) = var_type {
@@ -64,7 +87,7 @@ impl Analyzer {
                     mutable: *mutable,
                 };
 
-                if let Err(_e) = self.scope.declare(&ident.name, symbol) {
+                if let Err(_e) = self.declare(&ident.name, symbol) {
                     self.errors.push(AnalyzeError::new(
                         AnalyzeErrorKind::VariableAlreadyDeclared(ident.name.clone()),
                         ident.location.clone(),
@@ -72,11 +95,11 @@ impl Analyzer {
                 }
             }
             StmtKind::ExprStmt(expr) => {
-                self.analyze_expression(expr);
+                self.analyze_expression(expr, None);
             }
             StmtKind::Assignment { target, value } => {
-                let target_type = self.analyze_expression(target);
-                let value_type = self.analyze_expression(value);
+                let target_type = self.analyze_expression(target, None);
+                let value_type = self.analyze_expression(value, None);
 
                 if target_type != value_type {
                     self.errors.push(AnalyzeError::new(
@@ -92,7 +115,7 @@ impl Analyzer {
                 name,
                 parameters,
                 return_type,
-                body,
+                body: _,
             } => {
                 let param_types = parameters
                     .iter()
@@ -105,50 +128,55 @@ impl Analyzer {
                     return_type: return_type.as_ref().map(|t| t.kind.clone()),
                 };
 
-                if let Err(_e) = self.scope.declare(&name.name, symbol) {
+                if let Err(_e) = self.declare(&name.name, symbol) {
                     self.errors.push(AnalyzeError::new(
                         AnalyzeErrorKind::VariableAlreadyDeclared(name.name.clone()),
                         name.location.clone(),
                     ));
                 }
 
-                let mut new_scope = Scope::new(Some(Box::new(self.scope.clone())));
+                self.enter_scope();
                 for (ident, typ) in parameters {
                     let param_symbol = Symbol::Variable {
                         name: ident.name.clone(),
                         type_kind: typ.kind.clone(),
                         mutable: false,
                     };
-                    if let Err(_e) = new_scope.declare(&ident.name, param_symbol) {
-                         self.errors.push(AnalyzeError::new(
+                    if let Err(_e) = self.declare(&ident.name, param_symbol) {
+                        self.errors.push(AnalyzeError::new(
                             AnalyzeErrorKind::VariableAlreadyDeclared(ident.name.clone()),
                             ident.location.clone(),
                         ));
                     }
                 }
 
-                let original_scope = self.scope.clone();
-                self.scope = new_scope;
-                self.analyze_expression(body);
-                self.scope = original_scope;
+                self.exit_scope();
             }
             StmtKind::ReturnStmt(expr) => {
-                if let Some(expr) = expr {
-                    self.analyze_expression(expr);
+                let expr_type = expr.as_ref().and_then(|e| self.analyze_expression(e, expected_return_type.clone()));
+
+                if expected_return_type != expr_type {
+                    self.errors.push(AnalyzeError::new(
+                        AnalyzeErrorKind::TypeMismatch {
+                            expected: format!("{:?}", expected_return_type),
+                            found: format!("{:?}", expr_type),
+                        },
+                        statement.location.clone(),
+                    ));
                 }
             }
             _ => {}
         }
     }
 
-    fn analyze_expression(&mut self, expression: &Expr) -> Option<TypeKind> {
+    fn analyze_expression(&mut self, expression: &Expr, expected_return_type: Option<TypeKind>) -> Option<TypeKind> {
         match &expression.kind {
             ExprKind::IntLit(_) => Some(TypeKind::Int),
             ExprKind::FloatLit(_) => Some(TypeKind::Float),
             ExprKind::CharLit(_) => Some(TypeKind::Char),
             ExprKind::BoolTrue | ExprKind::BoolFalse => Some(TypeKind::Bool),
             ExprKind::IdentExpr(ident) => {
-                if let Some(symbol) = self.scope.find(&ident.name) {
+                if let Some(symbol) = self.find_symbol(&ident.name) {
                     match symbol {
                         Symbol::Variable { type_kind, .. } => Some(type_kind.clone()),
                         _ => {
@@ -168,8 +196,8 @@ impl Analyzer {
                 }
             }
             ExprKind::BinaryExpr { left, op, right } => {
-                let left_type = self.analyze_expression(left);
-                let right_type = self.analyze_expression(right);
+                let left_type = self.analyze_expression(left, None);
+                let right_type = self.analyze_expression(right, None);
 
                 match op {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
@@ -218,7 +246,7 @@ impl Analyzer {
                     parameters,
                     return_type,
                     ..
-                }) = self.scope.find(&function.name).cloned()
+                }) = self.find_symbol(&function.name).cloned()
                 {
                     if arguments.len() != parameters.len() {
                         self.errors.push(AnalyzeError::new(
@@ -231,7 +259,7 @@ impl Analyzer {
                     }
 
                     for (arg, param_type) in arguments.iter().zip(parameters.iter()) {
-                        let arg_type = self.analyze_expression(arg);
+                        let arg_type = self.analyze_expression(arg, None);
                         if arg_type.as_ref() != Some(param_type) {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
@@ -252,16 +280,12 @@ impl Analyzer {
                 }
             }
             ExprKind::BlockExpr { statements, ret } => {
-                let new_scope = Scope::new(Some(Box::new(self.scope.clone())));
-                let original_scope = self.scope.clone();
-                self.scope = new_scope;
-
+                self.enter_scope();
                 for stmt in statements {
-                    self.analyze_statement(stmt);
+                    self.analyze_statement(stmt, expected_return_type.clone());
                 }
-
-                let ret_type = ret.as_ref().and_then(|e| self.analyze_expression(e));
-                self.scope = original_scope;
+                let ret_type = ret.as_ref().and_then(|e| self.analyze_expression(e, expected_return_type));
+                self.exit_scope();
                 ret_type
             }
             ExprKind::IfExpr {
@@ -269,7 +293,7 @@ impl Analyzer {
                 then_branch,
                 else_branch,
             } => {
-                let cond_type = self.analyze_expression(condition);
+                let cond_type = self.analyze_expression(condition, None);
                 if cond_type != Some(TypeKind::Bool) {
                     self.errors.push(AnalyzeError::new(
                         AnalyzeErrorKind::TypeMismatch {
@@ -282,21 +306,23 @@ impl Analyzer {
 
                 let then_type = then_branch
                     .as_ref()
-                    .and_then(|b| self.analyze_expression(b));
-                let else_type = else_branch
-                    .as_ref()
-                    .and_then(|b| self.analyze_expression(b));
+                    .and_then(|b| self.analyze_expression(b, expected_return_type.clone()));
 
-                if then_type != else_type {
-                    self.errors.push(AnalyzeError::new(
-                        AnalyzeErrorKind::TypeMismatch {
-                            expected: format!("{:?}", then_type),
-                            found: format!("{:?}", else_type),
-                        },
-                        expression.location.clone(),
-                    ));
+                if let Some(else_branch) = else_branch {
+                    let else_type = self.analyze_expression(else_branch, expected_return_type);
+                    if then_type != else_type {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::TypeMismatch {
+                                expected: format!("{:?}", then_type),
+                                found: format!("{:?}", else_type),
+                            },
+                            expression.location.clone(),
+                        ));
+                    }
+                    then_type
+                } else {
+                    None
                 }
-                then_type
             }
             _ => None,
         }
