@@ -696,18 +696,11 @@ impl Parser {
         let mut final_expr = None;
 
         while !self.current_is(&[Token::RBrace]) {
-            // Check if we're at the final expression (no semicolon)
-            if self.is_expression_start() {
-                let peek_pos = self.look_ahead_until(&[Token::Semicolon, Token::RBrace]);
-
-                if let Some((Token::RBrace, _)) = peek_pos {
-                    // This is the final expression without semicolon
-                    final_expr = Some(Box::new(self.parse_expression()?));
-                    break;
-                }
+            if self.is_expression_start() && !self.look_ahead_for_semicolon() {
+                final_expr = Some(Box::new(self.parse_expression()?));
+                break;
             }
 
-            // Regular statement
             statements.push(self.parse_statement()?);
         }
 
@@ -736,16 +729,28 @@ impl Parser {
         }
     }
 
-    fn look_ahead_until(&self, tokens: &[Token]) -> Option<(Token, SourceLocation)> {
-        let mut iter = self.tokens.clone().into_iter();
-
-        while let Some((token, location)) = iter.next() {
-            if tokens.iter().any(|t| token_matches(t, &token)) {
-                return Some((token, location));
+    fn look_ahead_for_semicolon(&self) -> bool {
+        let mut balance = 0;
+        for (token, _) in self.tokens.clone() {
+            match token {
+                Token::LBrace | Token::LParen => balance += 1,
+                Token::RBrace | Token::RParen => {
+                    if balance == 0 {
+                        // This means we have an unmatched closing brace/paren, which is a syntax error
+                        // that will be caught later. For now, we can assume it's not a semicolon.
+                        return false;
+                    }
+                    balance -= 1;
+                }
+                Token::Semicolon => {
+                    if balance == 0 {
+                        return true;
+                    }
+                }
+                _ => {}
             }
         }
-
-        None
+        false
     }
 }
 
