@@ -2,6 +2,7 @@ use std::fs;
 use std::error::Error;
 use std::process;
 
+pub mod analyzer;
 pub mod lexer;
 pub mod parser;
 
@@ -82,7 +83,20 @@ pub fn process_file(filename: &str) -> Result<(), Box<dyn Error>> {
     match parser.parse_program() {
         Ok(program) => {
             // println!("\nParsing successful!");
-            println!("AST: {:#?}", program);
+            // println!("AST: {:#?}", program);
+
+            let mut analyzer = crate::analyzer::Analyzer::new();
+            match analyzer.analyze_program(&program) {
+                Ok(_) => {
+                    println!("Analysis successful!");
+                }
+                Err(errors) => {
+                    for err in errors {
+                        eprintln!("Analyze error: {:?} at {:?}", err.kind, err.location);
+                    }
+                    process::exit(1);
+                }
+            }
         },
         Err(err) => {
             eprintln!("Parse error: {:?}", err);
