@@ -17,15 +17,13 @@ pub enum Symbol {
 
 #[derive(Debug, Clone, Default)]
 pub struct Scope {
-    symbols: HashMap<String, Symbol>,
-    parent: Option<Box<Scope>>,
+    pub symbols: HashMap<String, Symbol>,
 }
 
 impl Scope {
-    pub fn new(parent: Option<Box<Scope>>) -> Self {
+    pub fn _new() -> Self {
         Scope {
             symbols: HashMap::new(),
-            parent,
         }
     }
 
@@ -38,8 +36,6 @@ impl Scope {
     }
 
     pub fn find(&self, name: &str) -> Option<&Symbol> {
-        self.symbols
-            .get(name)
-            .or_else(|| self.parent.as_ref().and_then(|p| p.find(name)))
+        self.symbols.get(name)
     }
 }
