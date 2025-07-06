@@ -1,5 +1,5 @@
 use std::ops::Add;
-// use crate::lexer::{SourceLocation};
+use crate::lexer::{SourceLocation};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -7,7 +7,13 @@ pub struct Program {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Stmt {
+pub struct Stmt {
+    pub kind: StmtKind,
+    pub location: SourceLocation,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum StmtKind {
     ExprStmt(Expr),
     VarDecl {
         mutable: bool,
@@ -46,7 +52,13 @@ pub struct FuncParam {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type {
+pub struct Type {
+    pub kind: TypeKind,
+    pub location: SourceLocation,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TypeKind {
     Int,
     Float,
     Char,
@@ -54,7 +66,13 @@ pub enum Type {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
+pub struct Expr {
+    pub kind: ExprKind,
+    pub location: SourceLocation,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprKind {
     IntLit(i64),
     FloatLit(f64),
     CharLit(char),
@@ -157,4 +175,5 @@ impl Add<i32> for Precedence {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Identifier {
     pub name: String,
+    pub location: SourceLocation,
 }

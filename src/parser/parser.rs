@@ -2,7 +2,9 @@ use crate::lexer::{Lexer, LexerError, SourceLocation, Token};
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
-use crate::parser::ast::{BinOp, Expr, Identifier, Precedence, Program, Stmt, Type};
+use crate::parser::ast::{
+    BinOp, Expr, ExprKind, Identifier, Precedence, Program, Stmt, StmtKind, Type, TypeKind,
+};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -24,6 +26,7 @@ impl From<LexerError> for ParseError {
     }
 }
 
+#[derive(Debug)]
 pub struct Parser {
     tokens: Peekable<IntoIter<(Token, SourceLocation)>>,
     current_token: Option<(Token, SourceLocation)>,
@@ -122,7 +125,12 @@ impl Parser {
     }
 
     pub fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
-        match &self.current_token {
+        let location = self
+            .current_token
+            .as_ref()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
+        let kind = match &self.current_token {
             Some((Token::Int, _))
             | Some((Token::Char, _))
             | Some((Token::Float, _))
@@ -162,24 +170,24 @@ impl Parser {
                     self.current_token = current_token_clone;
                     self.tokens = tokens_clone;
                     // Parse as a function
-                    self.parse_function_declaration()
+                    self.parse_function_declaration()?.kind
                 } else {
                     // It's a variable declaration or part of a structured binding
                     // Reset the parser state
                     self.current_token = current_token_clone;
                     self.tokens = tokens_clone;
                     // Parse as a variable
-                    self.parse_variable_declaration()
+                    self.parse_variable_declaration()?.kind
                 }
             }
 
-            Some((Token::Mut, _)) => self.parse_variable_declaration(),
+            Some((Token::Mut, _)) => self.parse_variable_declaration()?.kind,
 
             Some((Token::Ident(_name), _)) => {
                 // Check if we're looking at a function declaration
                 let peek_token = self.peek();
                 if let Some((Token::LParen, _)) = peek_token {
-                    self.parse_function_declaration()
+                    self.parse_function_declaration()?.kind
                 } else {
                     // It's either an assignment or an expression statement
                     let expr = self.parse_expression()?;
@@ -189,13 +197,13 @@ impl Parser {
                         self.advance(); // consume '='
                         let value = self.parse_expression()?;
                         self.expect(&[Token::Semicolon])?;
-                        Ok(Stmt::Assignment {
+                        StmtKind::Assignment {
                             target: expr,
                             value,
-                        })
+                        }
                     } else {
                         self.expect(&[Token::Semicolon])?;
-                        Ok(Stmt::ExprStmt(expr))
+                        StmtKind::ExprStmt(expr)
                     }
                 }
             }
@@ -208,25 +216,33 @@ impl Parser {
                     Some(self.parse_expression()?)
                 };
                 self.expect(&[Token::Semicolon])?;
-                Ok(Stmt::ReturnStmt(expr))
+                StmtKind::ReturnStmt(expr)
             }
 
             Some((_, _loc)) => {
                 // Try to parse it as an expression statement
                 let expr = self.parse_expression()?;
                 self.expect(&[Token::Semicolon])?;
-                Ok(Stmt::ExprStmt(expr))
+                StmtKind::ExprStmt(expr)
             }
 
-            None => Err(ParseError::UnexpectedToken {
-                expected: "statement".to_string(),
-                found: None,
-                location: None,
-            }),
-        }
+            None => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "statement".to_string(),
+                    found: None,
+                    location: None,
+                })
+            }
+        };
+        Ok(Stmt { kind, location })
     }
 
     fn parse_variable_declaration(&mut self) -> Result<Stmt, ParseError> {
+        let location = self
+            .current_token
+            .as_ref()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
         let mutable = if self.current_is(&[Token::Mut]) {
             self.advance(); // consume 'mut'
             true
@@ -253,15 +269,23 @@ impl Parser {
         // Expect semicolon
         self.expect(&[Token::Semicolon])?;
 
-        Ok(Stmt::VarDecl {
-            ident,
-            mutable,
-            typ,
-            initializer,
+        Ok(Stmt {
+            kind: StmtKind::VarDecl {
+                ident,
+                mutable,
+                typ,
+                initializer,
+            },
+            location,
         })
     }
 
     fn parse_function_declaration(&mut self) -> Result<Stmt, ParseError> {
+        let location = self
+            .current_token
+            .as_ref()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
         // Parse return type (if any)
         let return_type = if self.current_is(&[Token::Int, Token::Str, Token::Arr]) {
             Some(self.parse_type()?)
@@ -270,10 +294,11 @@ impl Parser {
         };
 
         // Parse function name
-        let name = if let Some((Token::Ident(id), _)) = &self.current_token {
+        let name = if let Some((Token::Ident(id), loc)) = &self.current_token {
             let name = id.clone();
+            let location = loc.clone();
             self.advance();
-            Identifier { name }
+            Identifier { name, location }
         } else {
             return Err(ParseError::UnexpectedToken {
                 expected: "identifier".to_string(),
@@ -292,8 +317,11 @@ impl Parser {
                 let param_type = self.parse_type()?;
 
                 // Parse parameter name
-                if let Some((Token::Ident(id), _)) = &self.current_token {
-                    let param_name = Identifier { name: id.clone() };
+                if let Some((Token::Ident(id), loc)) = &self.current_token {
+                    let param_name = Identifier {
+                        name: id.clone(),
+                        location: loc.clone(),
+                    };
                     self.advance();
                     parameters.push((param_name, param_type));
                 } else {
@@ -316,31 +344,39 @@ impl Parser {
         // Parse function body
         let body = self.parse_block_expression()?;
 
-        Ok(Stmt::FuncDecl {
-            name,
-            parameters,
-            return_type,
-            body,
+        Ok(Stmt {
+            kind: StmtKind::FuncDecl {
+                name,
+                parameters,
+                return_type,
+                body,
+            },
+            location,
         })
     }
 
     fn parse_type(&mut self) -> Result<Type, ParseError> {
-        match &self.current_token {
+        let location = self
+            .current_token
+            .as_ref()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
+        let kind = match &self.current_token {
             Some((Token::Int, _)) => {
                 self.advance();
-                Ok(Type::Int)
+                TypeKind::Int
             }
             Some((Token::Bool, _)) => {
                 self.advance();
-                Ok(Type::Bool)
+                TypeKind::Bool
             }
             Some((Token::Char, _)) => {
                 self.advance();
-                Ok(Type::Bool)
+                TypeKind::Char
             }
             Some((Token::Float, _)) => {
                 self.advance();
-                Ok(Type::Float)
+                TypeKind::Float
             }
             // Some((Token::Arr, _)) => {
             //     self.advance();
@@ -349,18 +385,24 @@ impl Parser {
             //     self.expect(&[Token::RBracket])?;
             //     Ok(Type::Array(Box::new(element_type)))
             // },
-            _ => Err(ParseError::UnexpectedToken {
-                expected: "type".to_string(),
-                found: self.current_token.as_ref().map(|(t, _)| t.clone()),
-                location: self.current_token.as_ref().map(|(_, l)| l.clone()),
-            }),
-        }
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "type".to_string(),
+                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    location: self.current_token.as_ref().map(|(_, l)| l.clone()),
+                })
+            }
+        };
+        Ok(Type { kind, location })
     }
 
     fn parse_ident(&mut self) -> Result<Identifier, ParseError> {
         match &self.current_token {
-            Some((Token::Ident(name), _)) => {
-                let id = Identifier { name: name.clone() };
+            Some((Token::Ident(name), loc)) => {
+                let id = Identifier {
+                    name: name.clone(),
+                    location: loc.clone(),
+                };
                 self.advance();
                 Ok(id)
             }
@@ -386,11 +428,15 @@ impl Parser {
 
             let operator = self.parse_binary_operator()?;
             let right = self.parse_binary_expression(op_precedence + 1)?;
+            let location = left.location.clone();
 
-            left = Expr::BinaryExpr {
-                left: Box::new(left),
-                op: operator,
-                right: Box::new(right),
+            left = Expr {
+                kind: ExprKind::BinaryExpr {
+                    left: Box::new(left),
+                    op: operator,
+                    right: Box::new(right),
+                },
+                location,
             };
         }
 
@@ -481,37 +527,43 @@ impl Parser {
     }
 
     fn parse_primary_expression(&mut self) -> Result<Expr, ParseError> {
-        match &self.current_token {
+        let location = self
+            .current_token
+            .as_ref()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
+        let kind = match &self.current_token {
             Some((Token::IntLit(value), _)) => {
                 let val = *value;
                 self.advance();
-                Ok(Expr::IntLit(val))
+                ExprKind::IntLit(val)
             }
 
             Some((Token::FloatLit(value), _)) => {
                 let val = *value;
                 self.advance();
-                Ok(Expr::FloatLit(val))
+                ExprKind::FloatLit(val)
             }
 
             Some((Token::CharLit(value), _)) => {
                 let val = *value;
                 self.advance();
-                Ok(Expr::CharLit(val))
+                ExprKind::CharLit(val)
             }
 
             Some((Token::True, _)) => {
                 self.advance();
-                Ok(Expr::BoolTrue)
+                ExprKind::BoolTrue
             }
 
             Some((Token::False, _)) => {
                 self.advance();
-                Ok(Expr::BoolFalse)
+                ExprKind::BoolFalse
             }
 
-            Some((Token::Ident(name), _)) => {
+            Some((Token::Ident(name), loc)) => {
                 let id_name = name.clone();
+                let id_loc = loc.clone();
                 self.advance();
 
                 // Check if this is a function call
@@ -532,12 +584,18 @@ impl Parser {
 
                     self.expect(&[Token::RParen])?;
 
-                    Ok(Expr::FunctionCall {
-                        function: Box::new(Identifier { name: id_name }),
+                    ExprKind::FunctionCall {
+                        function: Box::new(Identifier {
+                            name: id_name,
+                            location: id_loc,
+                        }),
                         arguments,
-                    })
+                    }
                 } else {
-                    Ok(Expr::IdentExpr(Identifier { name: id_name }))
+                    ExprKind::IdentExpr(Identifier {
+                        name: id_name,
+                        location: id_loc,
+                    })
                 }
             }
 
@@ -564,16 +622,16 @@ impl Parser {
                     }
 
                     self.expect(&[Token::RParen])?;
-                    Ok(Expr::TupleExpr(expressions))
+                    ExprKind::TupleExpr(expressions)
                 } else {
                     // It's a parenthesized expression
                     let expr = expressions.pop().unwrap();
                     self.expect(&[Token::RParen])?;
-                    Ok(Expr::ParenExpr(Box::new(expr)))
+                    ExprKind::ParenExpr(Box::new(expr))
                 }
             }
 
-            Some((Token::LBrace, _)) => self.parse_block_expression(),
+            Some((Token::LBrace, _)) => return self.parse_block_expression(),
 
             Some((Token::If, _)) => {
                 self.advance(); // consume 'if'
@@ -608,22 +666,30 @@ impl Parser {
                     None
                 };
 
-                Ok(Expr::IfExpr {
+                ExprKind::IfExpr {
                     condition: Box::new(condition),
                     then_branch,
                     else_branch,
-                })
+                }
             }
 
-            _ => Err(ParseError::UnexpectedToken {
-                expected: "expr".to_string(),
-                found: self.current_token.as_ref().map(|(t, _)| t.clone()),
-                location: self.current_token.as_ref().map(|(_, l)| l.clone()),
-            }),
-        }
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: "expr".to_string(),
+                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    location: self.current_token.as_ref().map(|(_, l)| l.clone()),
+                })
+            }
+        };
+        Ok(Expr { kind, location })
     }
 
     fn parse_block_expression(&mut self) -> Result<Expr, ParseError> {
+        let location = self
+            .current_token
+            .as_ref()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
         self.expect(&[Token::LBrace])?;
 
         let mut statements = Vec::new();
@@ -647,9 +713,12 @@ impl Parser {
 
         self.expect(&[Token::RBrace])?;
 
-        Ok(Expr::BlockExpr {
-            statements,
-            ret: final_expr,
+        Ok(Expr {
+            kind: ExprKind::BlockExpr {
+                statements,
+                ret: final_expr,
+            },
+            location,
         })
     }
 

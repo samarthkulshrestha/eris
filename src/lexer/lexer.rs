@@ -174,7 +174,7 @@ impl fmt::Display for LexerError {
 
 impl Error for LexerError {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct SourceLocation {
     pub line: usize,
     pub column: usize,
