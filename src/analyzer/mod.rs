@@ -113,7 +113,7 @@ impl Analyzer {
                 name,
                 parameters,
                 return_type,
-                body: _,
+                body,
             } => {
                 let param_types = parameters
                     .iter()
@@ -147,6 +147,8 @@ impl Analyzer {
                         ));
                     }
                 }
+
+                self.analyze_expression(body, return_type.as_ref().map(|t| t.kind.clone()));
 
                 self.exit_scope();
             }
