@@ -195,20 +195,35 @@ pub struct SourceLocation {
 }
 
 pub struct Lexer<'a> {
+    source: &'a str,
     logos_lexer: logos::Lexer<'a, Token>,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Lexer {
+            source,
             logos_lexer: Token::lexer(source),
         }
     }
 
     fn get_location(&self, byte_index: usize) -> SourceLocation {
-        // This is a simplified location tracking. For more accurate line/column
-        // numbers, you might need to keep track of newlines.
-        SourceLocation { line: 1, column: byte_index + 1 }
+        let mut line = 1;
+        let mut current_index = 0;
+
+        for line_str in self.source.lines() {
+            let line_len = line_str.len() + 1; // +1 for the newline
+
+            if current_index + line_len > byte_index {
+                let column = byte_index - current_index + 1;
+                return SourceLocation { line, column };
+            }
+
+            current_index += line_len;
+            line += 1;
+        }
+
+        SourceLocation { line, column: 1 }
     }
 
     pub fn tokenize(&mut self) -> Result<Vec<(Token, SourceLocation)>, LexerError> {
