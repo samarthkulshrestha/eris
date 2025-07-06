@@ -1,24 +1,3 @@
--- -- variable declaration
--- int x := 10;
--- mut int y := 20;        -- vars are immutable by default
--- -- y = 20 * 2;             -- re-assign mutable values using `=`
---
--- -- blocks and expressions
--- int result := {         -- blocks return the value of the last expr without a semicolon
---     int x := 10;
---     x * 2
--- };                       -- result = 20
--- mut int x := (2 + 3) * 4;   -- evaluates to 20, following PEMDAS
-
--- if x > 10 {
---     int z := 20;
---     z
---   } else if x == 20 {
---     abc
---   } else {
---       haha
--- };
-
 -- functions
 int factorial(int n) {
     if n <= 1 {
