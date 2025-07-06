@@ -1,4 +1,4 @@
-use crate::lexer::{Lexer, LexerError, SourceLocation, Token};
+use crate::lexer::{LexerError, SourceLocation, Token};
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
@@ -7,22 +7,27 @@ use crate::parser::ast::{
 };
 
 #[derive(Debug)]
-pub enum ParseError {
+pub enum ParseErrorKind {
     UnexpectedToken {
         expected: String,
         found: Option<Token>,
-        location: Option<SourceLocation>,
     },
-    InvalidSyntax {
-        message: String,
-        location: Option<SourceLocation>,
-    },
+    InvalidSyntax(String),
     LexerError(LexerError),
+}
+
+#[derive(Debug)]
+pub struct ParseError {
+    pub kind: ParseErrorKind,
+    pub location: Option<SourceLocation>,
 }
 
 impl From<LexerError> for ParseError {
     fn from(err: LexerError) -> Self {
-        ParseError::LexerError(err)
+        ParseError {
+            kind: ParseErrorKind::LexerError(err),
+            location: None,
+        }
     }
 }
 
@@ -33,19 +38,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new(source: &str) -> Result<Self, LexerError> {
-        let mut lexer = Lexer::new(source);
-        let token_results = lexer.tokenize();
-
-        // Filter out any lexer errors
-        let mut tokens = Vec::new();
-        for result in token_results {
-            match result {
-                Ok(token_loc) => tokens.push(token_loc),
-                Err(err) => return Err(err),
-            }
-        }
-
+    pub fn new(tokens: Vec<(Token, SourceLocation)>) -> Self {
         let mut parser = Parser {
             tokens: tokens.into_iter().peekable(),
             current_token: None,
@@ -54,7 +47,7 @@ impl Parser {
         // Advance to the first token
         parser.advance();
 
-        Ok(parser)
+        parser
     }
 
     fn advance(&mut self) -> Option<(Token, SourceLocation)> {
@@ -62,9 +55,9 @@ impl Parser {
         self.current_token.clone()
     }
 
-    fn peek(&mut self) -> Option<&(Token, SourceLocation)> {
-        self.tokens.peek()
-    }
+    // fn _peek(&mut self) -> Option<&(Token, SourceLocation)> {
+    //     self.tokens.peek()
+    // }
 
     fn expect(&mut self, expected: &[Token]) -> Result<(Token, SourceLocation), ParseError> {
         if let Some((token, location)) = &self.current_token {
@@ -80,20 +73,24 @@ impl Parser {
                 .collect::<Vec<_>>()
                 .join(", ");
 
-            return Err(ParseError::UnexpectedToken {
-                expected: expected_str,
-                found: Some(token.clone()),
+            return Err(ParseError {
+                kind: ParseErrorKind::UnexpectedToken {
+                    expected: expected_str,
+                    found: Some(token.clone()),
+                },
                 location: Some(location.clone()),
             });
         }
 
-        Err(ParseError::UnexpectedToken {
-            expected: expected
-                .iter()
-                .map(|t| format!("{:?}", t))
-                .collect::<Vec<_>>()
-                .join(", "),
-            found: None,
+        Err(ParseError {
+            kind: ParseErrorKind::UnexpectedToken {
+                expected: expected
+                    .iter()
+                    .map(|t| format!("{:?}", t))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                found: None,
+            },
             location: None,
         })
     }
@@ -106,13 +103,13 @@ impl Parser {
         }
     }
 
-    fn _peek_is(&mut self, tokens: &[Token]) -> bool {
-        if let Some((token, _)) = self.peek() {
-            tokens.iter().any(|t| token_matches(t, token))
-        } else {
-            false
-        }
-    }
+    // fn _peek_is(&mut self, tokens: &[Token]) -> bool {
+    //     if let Some((token, _)) = self.peek() {
+    //         tokens.iter().any(|t| token_matches(t, token))
+    //     } else {
+    //         false
+    //     }
+    // }
 
     pub fn parse_program(&mut self) -> Result<Program, ParseError> {
         let mut statements = Vec::new();
@@ -147,9 +144,11 @@ impl Parser {
 
                 // Check if we have an identifier
                 if !self.current_is(&[Token::Ident(String::new())]) {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: "identifier".to_string(),
-                        found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    return Err(ParseError {
+                        kind: ParseErrorKind::UnexpectedToken {
+                            expected: "identifier".to_string(),
+                            found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                        },
                         location: self.current_token.as_ref().map(|(_, l)| l.clone()),
                     });
                 }
@@ -185,8 +184,13 @@ impl Parser {
 
             Some((Token::Ident(_name), _)) => {
                 // Check if we're looking at a function declaration
-                let peek_token = self.peek();
-                if let Some((Token::LParen, _)) = peek_token {
+                let mut is_func_decl = false;
+                let mut lookahead = self.tokens.clone();
+                if let Some((Token::LParen, _)) = lookahead.next() {
+                    is_func_decl = true;
+                }
+
+                if is_func_decl {
                     self.parse_function_declaration()?.kind
                 } else {
                     // It's either an assignment or an expression statement
@@ -227,9 +231,8 @@ impl Parser {
             }
 
             None => {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "statement".to_string(),
-                    found: None,
+                return Err(ParseError {
+                    kind: ParseErrorKind::InvalidSyntax("Unexpected end of file".to_string()),
                     location: None,
                 })
             }
@@ -300,9 +303,11 @@ impl Parser {
             self.advance();
             Identifier { name, location }
         } else {
-            return Err(ParseError::UnexpectedToken {
-                expected: "identifier".to_string(),
-                found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+            return Err(ParseError {
+                kind: ParseErrorKind::UnexpectedToken {
+                    expected: "identifier".to_string(),
+                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                },
                 location: self.current_token.as_ref().map(|(_, l)| l.clone()),
             });
         };
@@ -325,9 +330,11 @@ impl Parser {
                     self.advance();
                     parameters.push((param_name, param_type));
                 } else {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: "identifier".to_string(),
-                        found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    return Err(ParseError {
+                        kind: ParseErrorKind::UnexpectedToken {
+                            expected: "identifier".to_string(),
+                            found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                        },
                         location: self.current_token.as_ref().map(|(_, l)| l.clone()),
                     });
                 }
@@ -386,11 +393,13 @@ impl Parser {
             //     Ok(Type::Array(Box::new(element_type)))
             // },
             _ => {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "type".to_string(),
-                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                return Err(ParseError {
+                    kind: ParseErrorKind::UnexpectedToken {
+                        expected: "type".to_string(),
+                        found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    },
                     location: self.current_token.as_ref().map(|(_, l)| l.clone()),
-                })
+                });
             }
         };
         Ok(Type { kind, location })
@@ -406,9 +415,11 @@ impl Parser {
                 self.advance();
                 Ok(id)
             }
-            _ => Err(ParseError::UnexpectedToken {
-                expected: "pattern".to_string(),
-                found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+            _ => Err(ParseError {
+                kind: ParseErrorKind::UnexpectedToken {
+                    expected: "pattern".to_string(),
+                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                },
                 location: self.current_token.as_ref().map(|(_, l)| l.clone()),
             }),
         }
@@ -515,11 +526,13 @@ impl Parser {
                 BinOp::LOr
             }
             _ => {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "binary operator".to_string(),
-                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                return Err(ParseError {
+                    kind: ParseErrorKind::UnexpectedToken {
+                        expected: "binary operator".to_string(),
+                        found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    },
                     location: self.current_token.as_ref().map(|(_, l)| l.clone()),
-                })
+                });
             }
         };
 
@@ -674,11 +687,13 @@ impl Parser {
             }
 
             _ => {
-                return Err(ParseError::UnexpectedToken {
-                    expected: "expr".to_string(),
-                    found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                return Err(ParseError {
+                    kind: ParseErrorKind::UnexpectedToken {
+                        expected: "expr".to_string(),
+                        found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                    },
                     location: self.current_token.as_ref().map(|(_, l)| l.clone()),
-                })
+                });
             }
         };
         Ok(Expr { kind, location })
