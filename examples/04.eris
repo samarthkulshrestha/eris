@@ -1,0 +1,7 @@
+mut int y := 20;            -- vars are immutable by default
+mut int x := (2 + 3) * 4;   -- evaluates to 20, following PEMDAS
+
+int result := {             -- blocks return the value of the last expr without a semicolon
+    int x := 10;
+    x * 2
+};                          -- result = 20

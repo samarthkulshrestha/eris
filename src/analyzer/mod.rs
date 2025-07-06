@@ -42,8 +42,6 @@ impl Analyzer {
         None
     }
 
-    
-
     pub fn analyze_program(&mut self, program: &Program) -> Result<(), Vec<AnalyzeError>> {
         for statement in &program.statements {
             self.analyze_statement(statement, None);
@@ -279,6 +277,7 @@ impl Analyzer {
                     None
                 }
             }
+            ExprKind::ParenExpr(expr) => self.analyze_expression(expr, expected_return_type),
             ExprKind::BlockExpr { statements, ret } => {
                 self.enter_scope();
                 for stmt in statements {
