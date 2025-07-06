@@ -158,17 +158,31 @@ impl fmt::Display for Token {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum LexerErrorKind {
+    InvalidIdentifier(String),
+    // UnterminatedString,
+    InvalidToken(String),
+}
+
 #[derive(Debug)]
 pub struct LexerError {
-    token: String,
-    line: usize,
-    column: usize,
+    kind: LexerErrorKind,
+    location: SourceLocation,
 }
 
 impl fmt::Display for LexerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Lexer error: Invalid token '{}' at {}:{}", 
-            self.token, self.line, self.column)
+        let message = match &self.kind {
+            LexerErrorKind::InvalidIdentifier(s) => format!("Invalid identifier: '{}'", s),
+            // LexerErrorKind::UnterminatedString => "Unterminated string".to_string(),
+            LexerErrorKind::InvalidToken(s) => format!("Invalid token: '{}'", s),
+        };
+        write!(
+            f,
+            "Lexer error at {}:{}: {}",
+            self.location.line, self.location.column, message
+        )
     }
 }
 
@@ -181,39 +195,23 @@ pub struct SourceLocation {
 }
 
 pub struct Lexer<'a> {
-    source: &'a str,
     logos_lexer: logos::Lexer<'a, Token>,
-    // We need to preprocess the source to handle multi-line comments
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(source: &'a str) -> Self {
         Lexer {
-            source,
             logos_lexer: Token::lexer(source),
         }
     }
 
     fn get_location(&self, byte_index: usize) -> SourceLocation {
-        let mut line = 1;
-        let mut current_index = 0;
-
-        for line_str in self.source.lines() {
-            let line_len = line_str.len() + 1; // +1 for the newline
-
-            if current_index + line_len > byte_index {
-                let column = byte_index - current_index + 1;
-                return SourceLocation { line, column };
-            }
-
-            current_index += line_len;
-            line += 1;
-        }
-
-        SourceLocation { line, column: 1 }
+        // This is a simplified location tracking. For more accurate line/column
+        // numbers, you might need to keep track of newlines.
+        SourceLocation { line: 1, column: byte_index + 1 }
     }
 
-    pub fn tokenize(&mut self) -> Vec<Result<(Token, SourceLocation), LexerError>> {
+    pub fn tokenize(&mut self) -> Result<Vec<(Token, SourceLocation)>, LexerError> {
         let mut tokens = Vec::new();
 
         while let Some(token_result) = self.logos_lexer.next() {
@@ -222,26 +220,24 @@ impl<'a> Lexer<'a> {
 
             match token_result {
                 Ok(Token::InvalidIdent(s)) => {
-                    tokens.push(Err(LexerError {
-                        token: s.clone(),
-                        line: location.line,
-                        column: location.column,
-                    }));
-                },
+                    return Err(LexerError {
+                        kind: LexerErrorKind::InvalidIdentifier(s.clone()),
+                        location,
+                    });
+                }
                 Ok(token) => {
-                    tokens.push(Ok((token, location)));
-                },
+                    tokens.push((token, location));
+                }
                 Err(_) => {
-                    let invalid_token = self.source[span.clone()].to_string();
-                    tokens.push(Err(LexerError {
-                        token: invalid_token,
-                        line: location.line,
-                        column: location.column,
-                    }));
+                    let invalid_token = self.logos_lexer.slice().to_string();
+                    return Err(LexerError {
+                        kind: LexerErrorKind::InvalidToken(invalid_token),
+                        location,
+                    });
                 }
             }
         }
 
-        tokens
+        Ok(tokens)
     }
 }
