@@ -4,10 +4,10 @@ use std::error::Error;
 
 // Token definitions for Eris programming language
 #[derive(Logos, Debug, PartialEq, Clone)]
-#[logos(skip r"[ \t\n\f]+")]  // Skip whitespace
-#[logos(skip r"--[^\n]*")]    // Skip single-line comments
-#[logos(skip r"---[^\n]*")]   // Skip doc comments
-// Custom handling for multi-line comments is implemented in the lexer
+#[logos(skip r"[ \t\n\f]+")] // Skip whitespace
+#[logos(skip r"--[^\n]*")]   // Skip single-line comments
+#[logos(skip r"---[^\n]*")]  // Skip doc comments
+// #[logos(skip r"-\+((?!\+-).)*\+-")] // Skip multi-line comments
 pub enum Token {
     // Keywords
     #[token("mut")]
