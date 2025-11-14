@@ -96,6 +96,25 @@ impl Analyzer {
                 self.analyze_expression(expr, None);
             }
             StmtKind::Assignment { target, value } => {
+                // Check if target is mutable
+                if let ExprKind::IdentExpr(ident) = &target.kind {
+                    if let Some(symbol) = self.find_symbol(&ident.name) {
+                        match symbol {
+                            Symbol::Variable { mutable, .. } => {
+                                if !mutable {
+                                    self.errors.push(AnalyzeError::new(
+                                        AnalyzeErrorKind::AssignmentToImmutable(ident.name.clone()),
+                                        target.location.clone(),
+                                    ));
+                                }
+                            }
+                            _ => {
+                                // Not a variable, this will be caught elsewhere
+                            }
+                        }
+                    }
+                }
+
                 let target_type = self.analyze_expression(target, None);
                 let value_type = self.analyze_expression(value, None);
 
@@ -174,6 +193,32 @@ impl Analyzer {
             ExprKind::IntLit(_) => Some(TypeKind::Int),
             ExprKind::FloatLit(_) => Some(TypeKind::Float),
             ExprKind::CharLit(_) => Some(TypeKind::Char),
+            ExprKind::StringLit(_) => Some(TypeKind::Str),
+            ExprKind::ArrayLit(elements) => {
+                // Infer array type from first element
+                if elements.is_empty() {
+                    // Empty array - we can't infer the type
+                    None
+                } else {
+                    let first_type = self.analyze_expression(&elements[0], None)?;
+
+                    // Check that all elements have the same type
+                    for elem in &elements[1..] {
+                        let elem_type = self.analyze_expression(elem, None);
+                        if elem_type != Some(first_type.clone()) {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::TypeMismatch {
+                                    expected: format!("{:?}", first_type),
+                                    found: format!("{:?}", elem_type),
+                                },
+                                elem.location.clone(),
+                            ));
+                        }
+                    }
+
+                    Some(TypeKind::Array(Box::new(first_type)))
+                }
+            }
             ExprKind::BoolTrue | ExprKind::BoolFalse => Some(TypeKind::Bool),
             ExprKind::IdentExpr(ident) => {
                 if let Some(symbol) = self.find_symbol(&ident.name) {
@@ -323,6 +368,56 @@ impl Analyzer {
                     then_type
                 } else {
                     None
+                }
+            }
+            ExprKind::UnaryExpr { op, expression: expr } => {
+                use crate::parser::ast::UnaryOp;
+                let expr_type = self.analyze_expression(expr, None);
+
+                match op {
+                    UnaryOp::LNot => {
+                        // Logical NOT requires Bool operand
+                        if expr_type != Some(TypeKind::Bool) {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::TypeMismatch {
+                                    expected: "Bool".to_string(),
+                                    found: format!("{:?}", expr_type),
+                                },
+                                expr.location.clone(),
+                            ));
+                        }
+                        Some(TypeKind::Bool)
+                    }
+                    UnaryOp::BNot => {
+                        // Bitwise NOT requires Int operand
+                        if expr_type != Some(TypeKind::Int) {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::TypeMismatch {
+                                    expected: "Int".to_string(),
+                                    found: format!("{:?}", expr_type),
+                                },
+                                expr.location.clone(),
+                            ));
+                        }
+                        Some(TypeKind::Int)
+                    }
+                    UnaryOp::Neg => {
+                        // Negation works on Int or Float
+                        match expr_type {
+                            Some(TypeKind::Int) => Some(TypeKind::Int),
+                            Some(TypeKind::Float) => Some(TypeKind::Float),
+                            _ => {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: "Int or Float".to_string(),
+                                        found: format!("{:?}", expr_type),
+                                    },
+                                    expr.location.clone(),
+                                ));
+                                None
+                            }
+                        }
+                    }
                 }
             }
             _ => None,

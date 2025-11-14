@@ -63,6 +63,8 @@ pub enum TypeKind {
     Float,
     Char,
     Bool,
+    Str,
+    Array(Box<TypeKind>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -76,6 +78,8 @@ pub enum ExprKind {
     IntLit(i64),
     FloatLit(f64),
     CharLit(char),
+    StringLit(String),
+    ArrayLit(Vec<Expr>),
     BoolTrue,
     BoolFalse,
     IdentExpr(Identifier),

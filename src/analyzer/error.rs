@@ -19,6 +19,7 @@ pub enum AnalyzeErrorKind {
         found: usize,
     },
     VariableAlreadyDeclared(String),
+    AssignmentToImmutable(String),
 }
 
 impl AnalyzeError {

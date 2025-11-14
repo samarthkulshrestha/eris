@@ -115,13 +115,14 @@ impl Parser {
         let mut statements = Vec::new();
 
         while self.current_token.is_some() {
-            statements.push(self.parse_statement()?);
+            let mut stmts = self.parse_statement()?;
+            statements.append(&mut stmts);
         }
 
         Ok(Program { statements })
     }
 
-    pub fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
+    pub fn parse_statement(&mut self) -> Result<Vec<Stmt>, ParseError> {
         let location = self
             .current_token
             .as_ref()
@@ -131,7 +132,9 @@ impl Parser {
             Some((Token::Int, _))
             | Some((Token::Char, _))
             | Some((Token::Float, _))
-            | Some((Token::Bool, _)) => {
+            | Some((Token::Bool, _))
+            | Some((Token::Str, _))
+            | Some((Token::Arr, _)) => {
                 // This could be a variable declaration or a function declaration
                 // We need to look ahead to determine which one it is
 
@@ -142,45 +145,69 @@ impl Parser {
                 // Parse the type
                 let _type_annotation = self.parse_type()?;
 
-                // Check if we have an identifier
-                if !self.current_is(&[Token::Ident(String::new())]) {
+                // Check if we have an identifier or a tuple pattern (
+                if !self.current_is(&[Token::Ident(String::new())]) && !self.current_is(&[Token::LParen]) {
                     return Err(ParseError {
                         kind: ParseErrorKind::UnexpectedToken {
-                            expected: "identifier".to_string(),
+                            expected: "identifier or tuple pattern".to_string(),
                             found: self.current_token.as_ref().map(|(t, _)| t.clone()),
                         },
                         location: self.current_token.as_ref().map(|(_, l)| l.clone()),
                     });
                 }
 
-                // Get the identifier
-                let _name = if let Some((Token::Ident(id), _)) = &self.current_token {
-                    let name = id.clone();
-                    self.advance();
-                    name
-                } else {
-                    unreachable!()
-                };
+                // Check what comes next - either identifier or tuple pattern
+                let has_ident = matches!(&self.current_token, Some((Token::Ident(_), _)));
+                let has_tuple_pattern = self.current_is(&[Token::LParen]);
 
-                // Check what comes after the identifier
-                if self.current_is(&[Token::LParen]) {
-                    // It's a function declaration
+                if has_ident {
+                    // Get the identifier
+                    let _name = if let Some((Token::Ident(id), _)) = &self.current_token {
+                        let name = id.clone();
+                        self.advance();
+                        name
+                    } else {
+                        unreachable!()
+                    };
+
+                    // Check what comes after the identifier
+                    if self.current_is(&[Token::LParen]) {
+                        // It's a function declaration
+                        // Reset the parser state
+                        self.current_token = current_token_clone;
+                        self.tokens = tokens_clone;
+                        // Parse as a function
+                        self.parse_function_declaration()?.kind
+                    } else {
+                        // It's a variable declaration or part of a structured binding
+                        // Reset the parser state
+                        self.current_token = current_token_clone;
+                        self.tokens = tokens_clone;
+                        // Parse as a variable - this returns Vec<Stmt>, so return early
+                        return self.parse_variable_declarations();
+                    }
+                } else if has_tuple_pattern {
+                    // It's a tuple pattern: type (id1, id2) := ...
                     // Reset the parser state
                     self.current_token = current_token_clone;
                     self.tokens = tokens_clone;
-                    // Parse as a function
-                    self.parse_function_declaration()?.kind
+                    // Parse as a variable declaration with tuple pattern
+                    return self.parse_variable_declarations();
                 } else {
-                    // It's a variable declaration or part of a structured binding
-                    // Reset the parser state
-                    self.current_token = current_token_clone;
-                    self.tokens = tokens_clone;
-                    // Parse as a variable
-                    self.parse_variable_declaration()?.kind
+                    return Err(ParseError {
+                        kind: ParseErrorKind::UnexpectedToken {
+                            expected: "identifier or tuple pattern".to_string(),
+                            found: self.current_token.as_ref().map(|(t, _)| t.clone()),
+                        },
+                        location: self.current_token.as_ref().map(|(_, l)| l.clone()),
+                    });
                 }
             }
 
-            Some((Token::Mut, _)) => self.parse_variable_declaration()?.kind,
+            Some((Token::Mut, _)) => {
+                // Parse mutable variable declarations - returns Vec<Stmt>
+                return self.parse_variable_declarations();
+            }
 
             Some((Token::Ident(_name), _)) => {
                 // Check if we're looking at a function declaration
@@ -223,6 +250,32 @@ impl Parser {
                 StmtKind::ReturnStmt(expr)
             }
 
+            Some((Token::LParen, _)) => {
+                // Check if this is a tuple destructuring pattern: (type id, type id) := ...
+                // Save state in case it's just a parenthesized expression
+                let current_token_clone = self.current_token.clone();
+                let tokens_clone = self.tokens.clone();
+
+                self.advance(); // consume '('
+
+                // Try to parse as tuple pattern
+                let is_tuple_pattern = self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str]);
+
+                // Restore state
+                self.current_token = current_token_clone;
+                self.tokens = tokens_clone;
+
+                if is_tuple_pattern {
+                    // Parse as tuple destructuring
+                    return self.parse_tuple_destructuring();
+                } else {
+                    // It's an expression statement (like a tuple expression or function call)
+                    let expr = self.parse_expression()?;
+                    self.expect(&[Token::Semicolon])?;
+                    StmtKind::ExprStmt(expr)
+                }
+            }
+
             Some((_, _loc)) => {
                 // Try to parse it as an expression statement
                 let expr = self.parse_expression()?;
@@ -237,10 +290,79 @@ impl Parser {
                 })
             }
         };
-        Ok(Stmt { kind, location })
+        Ok(vec![Stmt { kind, location }])
     }
 
-    fn parse_variable_declaration(&mut self) -> Result<Stmt, ParseError> {
+    fn parse_tuple_destructuring(&mut self) -> Result<Vec<Stmt>, ParseError> {
+        let location = self
+            .current_token
+            .as_ref()
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default();
+
+        self.expect(&[Token::LParen])?; // consume '('
+
+        // Parse (type id, type id, ...)
+        let mut bindings: Vec<(Type, Identifier)> = Vec::new();
+        loop {
+            let typ = self.parse_type()?;
+            let ident = self.parse_ident()?;
+            bindings.push((typ, ident));
+
+            if !self.current_is(&[Token::Comma]) {
+                break;
+            }
+            self.advance(); // consume comma
+        }
+
+        self.expect(&[Token::RParen])?;
+        self.expect(&[Token::DeclareAssign])?;
+
+        // Parse the tuple expression on the right
+        let tuple_expr = self.parse_expression()?;
+
+        self.expect(&[Token::Semicolon])?;
+
+        // Validate that the right side is a tuple expression
+        if let ExprKind::TupleExpr(ref elements) = tuple_expr.kind {
+            if elements.len() != bindings.len() {
+                return Err(ParseError {
+                    kind: ParseErrorKind::InvalidSyntax(format!(
+                        "Tuple destructuring mismatch: {} bindings but {} values",
+                        bindings.len(),
+                        elements.len()
+                    )),
+                    location: Some(location),
+                });
+            }
+
+            // Create individual variable declarations for each tuple element
+            let statements = bindings
+                .into_iter()
+                .zip(elements.iter())
+                .map(|((typ, ident), initializer)| Stmt {
+                    kind: StmtKind::VarDecl {
+                        ident,
+                        mutable: false, // Tuple destructuring is immutable for now
+                        typ: Some(typ),
+                        initializer: Box::new(initializer.clone()),
+                    },
+                    location: location.clone(),
+                })
+                .collect();
+
+            Ok(statements)
+        } else {
+            Err(ParseError {
+                kind: ParseErrorKind::InvalidSyntax(
+                    "Expected tuple expression on right side of tuple destructuring".to_string(),
+                ),
+                location: Some(tuple_expr.location),
+            })
+        }
+    }
+
+    fn parse_variable_declarations(&mut self) -> Result<Vec<Stmt>, ParseError> {
         let location = self
             .current_token
             .as_ref()
@@ -254,33 +376,108 @@ impl Parser {
         };
 
         // Parse type annotation (if present)
-        let typ = if self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char]) {
+        let typ = if self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str, Token::Arr]) {
             Some(self.parse_type()?)
         } else {
             None
         };
 
-        // Parse identifier
-        let ident = self.parse_ident()?;
+        // Check if we have a tuple pattern: type (id1, id2, ...)
+        let idents = if self.current_is(&[Token::LParen]) && typ.is_some() {
+            // Tuple pattern with shared type: int (a, b) := (1, 2);
+            self.advance(); // consume '('
+            let mut ids = vec![self.parse_ident()?];
+            while self.current_is(&[Token::Comma]) {
+                self.advance(); // consume comma
+                ids.push(self.parse_ident()?);
+            }
+            self.expect(&[Token::RParen])?;
+            ids
+        } else {
+            // Regular identifier(s) - collect all if comma-separated
+            let mut ids = vec![self.parse_ident()?];
+            while self.current_is(&[Token::Comma]) {
+                self.advance(); // consume comma
+                ids.push(self.parse_ident()?);
+            }
+            ids
+        };
 
         // Expect declare-assign operator :=
         self.expect(&[Token::DeclareAssign])?;
 
-        // Parse initializer expression
-        let initializer = Box::new(self.parse_expression()?);
+        // Parse initializer expression(s) - collect all if comma-separated
+        let mut initializers = vec![self.parse_expression()?];
+        while self.current_is(&[Token::Comma]) {
+            self.advance(); // consume comma
+            initializers.push(self.parse_expression()?);
+        }
 
         // Expect semicolon
         self.expect(&[Token::Semicolon])?;
 
-        Ok(Stmt {
-            kind: StmtKind::VarDecl {
-                ident,
-                mutable,
-                typ,
-                initializer,
-            },
-            location,
-        })
+        // Check if we have a single tuple expression on the right with multiple identifiers
+        if idents.len() > 1 && initializers.len() == 1 {
+            // Check if the single initializer is a tuple expression
+            if let ExprKind::TupleExpr(ref elements) = initializers[0].kind {
+                if elements.len() != idents.len() {
+                    return Err(ParseError {
+                        kind: ParseErrorKind::InvalidSyntax(format!(
+                            "Tuple destructuring mismatch: {} bindings but {} values",
+                            idents.len(),
+                            elements.len()
+                        )),
+                        location: Some(location),
+                    });
+                }
+
+                // Create a statement for each identifier/tuple element pair
+                let statements = idents
+                    .into_iter()
+                    .zip(elements.iter())
+                    .map(|(ident, initializer)| Stmt {
+                        kind: StmtKind::VarDecl {
+                            ident,
+                            mutable,
+                            typ: typ.clone(),
+                            initializer: Box::new(initializer.clone()),
+                        },
+                        location: location.clone(),
+                    })
+                    .collect();
+
+                return Ok(statements);
+            }
+        }
+
+        // Check that we have matching counts for regular multiple bindings
+        if idents.len() != initializers.len() {
+            return Err(ParseError {
+                kind: ParseErrorKind::InvalidSyntax(format!(
+                    "Mismatch between number of identifiers ({}) and initializers ({})",
+                    idents.len(),
+                    initializers.len()
+                )),
+                location: Some(location),
+            });
+        }
+
+        // Create a statement for each identifier/initializer pair
+        let statements = idents
+            .into_iter()
+            .zip(initializers.into_iter())
+            .map(|(ident, initializer)| Stmt {
+                kind: StmtKind::VarDecl {
+                    ident,
+                    mutable,
+                    typ: typ.clone(),
+                    initializer: Box::new(initializer),
+                },
+                location: location.clone(),
+            })
+            .collect();
+
+        Ok(statements)
     }
 
     fn parse_function_declaration(&mut self) -> Result<Stmt, ParseError> {
@@ -290,7 +487,7 @@ impl Parser {
             .map(|(_, l)| l.clone())
             .unwrap_or_default();
         // Parse return type (if any)
-        let return_type = if self.current_is(&[Token::Int, Token::Str, Token::Arr]) {
+        let return_type = if self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str, Token::Arr]) {
             Some(self.parse_type()?)
         } else {
             None
@@ -385,13 +582,17 @@ impl Parser {
                 self.advance();
                 TypeKind::Float
             }
-            // Some((Token::Arr, _)) => {
-            //     self.advance();
-            //     self.expect(&[Token::LBracket])?;
-            //     let element_type = self.parse_type()?;
-            //     self.expect(&[Token::RBracket])?;
-            //     Ok(Type::Array(Box::new(element_type)))
-            // },
+            Some((Token::Str, _)) => {
+                self.advance();
+                TypeKind::Str
+            }
+            Some((Token::Arr, _)) => {
+                self.advance();
+                self.expect(&[Token::LBracket])?;
+                let element_type = self.parse_type()?;
+                self.expect(&[Token::RBracket])?;
+                TypeKind::Array(Box::new(element_type.kind))
+            }
             _ => {
                 return Err(ParseError {
                     kind: ParseErrorKind::UnexpectedToken {
@@ -546,6 +747,24 @@ impl Parser {
             .map(|(_, l)| l.clone())
             .unwrap_or_default();
         let kind = match &self.current_token {
+            // Handle unary operators (prefix expressions)
+            Some((Token::Not, _)) => {
+                self.advance(); // consume '!'
+                let expression = Box::new(self.parse_primary_expression()?);
+                ExprKind::UnaryExpr {
+                    op: crate::parser::ast::UnaryOp::LNot,
+                    expression,
+                }
+            }
+            Some((Token::Minus, _)) => {
+                self.advance(); // consume '-'
+                let expression = Box::new(self.parse_primary_expression()?);
+                ExprKind::UnaryExpr {
+                    op: crate::parser::ast::UnaryOp::Neg,
+                    expression,
+                }
+            }
+
             Some((Token::IntLit(value), _)) => {
                 let val = *value;
                 self.advance();
@@ -562,6 +781,12 @@ impl Parser {
                 let val = *value;
                 self.advance();
                 ExprKind::CharLit(val)
+            }
+
+            Some((Token::StringLit(value), _)) => {
+                let val = value.clone();
+                self.advance();
+                ExprKind::StringLit(val)
             }
 
             Some((Token::True, _)) => {
@@ -646,6 +871,27 @@ impl Parser {
 
             Some((Token::LBrace, _)) => return self.parse_block_expression(),
 
+            Some((Token::LBracket, _)) => {
+                // Array literal: [expr, expr, ...]
+                self.advance(); // consume '['
+
+                let mut elements = Vec::new();
+
+                if !self.current_is(&[Token::RBracket]) {
+                    loop {
+                        elements.push(self.parse_expression()?);
+
+                        if !self.current_is(&[Token::Comma]) {
+                            break;
+                        }
+                        self.advance(); // consume comma
+                    }
+                }
+
+                self.expect(&[Token::RBracket])?;
+                ExprKind::ArrayLit(elements)
+            }
+
             Some((Token::If, _)) => {
                 self.advance(); // consume 'if'
 
@@ -716,7 +962,8 @@ impl Parser {
                 break;
             }
 
-            statements.push(self.parse_statement()?);
+            let mut stmts = self.parse_statement()?;
+            statements.append(&mut stmts);
         }
 
         self.expect(&[Token::RBrace])?;
