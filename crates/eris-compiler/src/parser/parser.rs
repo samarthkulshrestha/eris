@@ -220,6 +220,21 @@ impl Parser {
         }
     }
 
+    /// Consume the trailing `;` of a statement whose value is `expr`. Block-
+    /// like expressions (blocks, if-expressions) self-terminate via their
+    /// closing brace, so the `;` is optional after them; everything else
+    /// requires it.
+    fn expect_statement_terminator(&mut self, expr: &Expr) -> Result<(), ParseError> {
+        if is_block_like_expr(expr) {
+            if self.current_is(&[Token::Semicolon]) {
+                self.advance();
+            }
+            Ok(())
+        } else {
+            self.expect(&[Token::Semicolon]).map(|_| ())
+        }
+    }
+
     // fn _peek_is(&mut self, tokens: &[Token]) -> bool {
     //     if let Some((token, _)) = self.peek() {
     //         tokens.iter().any(|t| token_matches(t, token))
@@ -334,14 +349,14 @@ impl Parser {
                 if self.current_is(&[Token::Assign]) {
                     self.advance(); // consume '='
                     let value = self.parse_expression()?;
-                    self.expect(&[Token::Semicolon])?;
+                    self.expect_statement_terminator(&value)?;
                     StmtKind::Assignment {
                         target: expr,
                         value,
                     }
                 } else {
                     // Expression statement (including function calls)
-                    self.expect(&[Token::Semicolon])?;
+                    self.expect_statement_terminator(&expr)?;
                     StmtKind::ExprStmt(expr)
                 }
             }
@@ -386,7 +401,7 @@ impl Parser {
                 } else {
                     // It's an expression statement (like a tuple expression or function call)
                     let expr = self.parse_expression()?;
-                    self.expect(&[Token::Semicolon])?;
+                    self.expect_statement_terminator(&expr)?;
                     StmtKind::ExprStmt(expr)
                 }
             }
@@ -394,7 +409,7 @@ impl Parser {
             Some((_, _loc)) => {
                 // Try to parse it as an expression statement
                 let expr = self.parse_expression()?;
-                self.expect(&[Token::Semicolon])?;
+                self.expect_statement_terminator(&expr)?;
                 StmtKind::ExprStmt(expr)
             }
 
@@ -1092,15 +1107,22 @@ impl Parser {
     }
 
     fn look_ahead_for_semicolon(&self) -> bool {
-        let mut balance = 0;
-        for (token, _) in &self.tokens[self.pos.saturating_add(1).min(self.tokens.len())..] {
+        // Scan forward from the current token (inclusive). Track paren/brace
+        // depth so a `;` only counts when it sits at the same nesting level
+        // we started at — i.e. when we've returned to balance 0 outside any
+        // group opened in the interim.
+        let mut balance: i32 = 0;
+        for (token, _) in &self.tokens[self.pos.min(self.tokens.len())..] {
             match token {
                 Token::LBrace | Token::LParen => balance += 1,
                 Token::RBrace | Token::RParen => {
-                    if balance == 0 {
+                    balance -= 1;
+                    if balance < 0 {
+                        // We've exited a group we never entered — the
+                        // statement boundary is enclosing us. No `;` at our
+                        // level.
                         return false;
                     }
-                    balance -= 1;
                 }
                 Token::Semicolon => {
                     if balance == 0 {
