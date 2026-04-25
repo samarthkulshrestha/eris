@@ -2,83 +2,90 @@
 
 > Code at the edge of order.
 
-## introduction
+Eris is a small, statically-typed, expression-oriented programming language with a working LLVM backend. It is also an experiment in compiler design: building a language whose compiler exposes its internal model — grammar, type rules, scope, errors, idioms — through structured APIs, so that Large Language Models can reason about Eris programs with the same rigor as the compiler itself.
 
-Eris is a ergonomic and opinionated programming language designed for simplicity and expressiveness. It focuses on being explicit in all aspects of code, with deliberate choices to enforce a consistent developer experience.
+This is a research project in early development.
 
-Eris emphasizes:
-- Explicit variable typing to eliminate ambiguity.
-- Minimal syntax that stays out of your way, allowing you to focus on logic.
-- Intentional mutability, where change is a conscious decision, not the default.
+## Status
 
-## philosophy
+**Version 0.8.0.** The language has a complete frontend (lexer → parser → semantic analyzer) and an LLVM IR backend that produces native binaries via `clang`. Programs can use built-in I/O (`print_int`, `print_str`, `print_bool`, `print_char`, `println`, `read_int`) and the standard control-flow constructs.
 
-> Eris is a language of **deliberate acts.**
-Types are explicit. Change is explicit. Thought is explicit.
-In Eris, you shape the code — the code does not shape you.
+The LLM-facing surface — structured diagnostics, a machine-readable language description, an MCP server exposing compiler internals as tool calls, an opinionated linter, and an LLM-grounded `--explain` flag — is the project's next focus and does not exist yet.
 
-## features
-- static typing
-- first-class mutability control
-- minimal, consistent syntax
-- strong, predictable scoping rules
-- clear, explicit import
-- first-class functions
-- destructuring support
-- pattern matching / smart conditionals
-- strict error handling
-- simple, explicit modules / namespaces
+## Design principles
 
-## later features
-- lambda functions
-- algebraic data types
-- traits / interfaces
-- zero-cost abstractions
-- first-class immutability for collections
-- minimal but clear concurrency primitives
-- optional compile-time metaprogramming
-- tooling-first design
+Eris is a language of **deliberate acts**. Three rules:
 
-## syntax
+- **Explicit typing.** Every variable carries a type annotation. There is no inference.
+- **Intentional mutability.** Bindings are immutable by default; use `mut` to opt in.
+- **Expression-oriented.** Blocks and `if` are expressions that produce values. The trailing expression of a block — written without a semicolon — is its result.
+
+The point is to make the choices visible. You should be able to read a piece of Eris and know exactly what it does without inferring intent.
+
+## A compiler designed for LLM collaboration
+
+Most compilers are designed for one audience: human programmers reading text errors. The terminal-rendered diagnostics, the prose documentation, the man-page-style help — all of it assumes the reader is human.
+
+The thesis behind Eris is that a compiler should also serve another audience: a model writing or reasoning about code in the language. That second audience needs different things:
+
+- **Structured errors with stable codes**, not just rendered text — so an automated fix loop can match on `E0203` instead of parsing English.
+- **A machine-readable language description** — so a model that has never seen Eris in its training data can write valid programs from a single document in its context.
+- **A tool-call interface to the compiler's internals** — so an agent can ask "what's in scope here?" or "would this expression typecheck?" with the same authority the compiler itself has.
+- **A curated cookbook of canonical examples**, every one verified to compile — so generated code can be grounded in tested patterns rather than hallucinated ones.
+- **An opinionated linter** — encoding what *idiomatic* Eris looks like, not just what compiles.
+
+Eris is being built deliberately along these lines. The compiler exists for humans; the surrounding tooling will exist for both. The work-in-progress lives in the commit history.
+
+## Quick start
+
+Requires a recent Rust toolchain and LLVM 17 installed locally.
+
+```bash
+# Build the workspace
+cargo build --workspace
+
+# Run an example: factorial of 5, returned as the program's exit code
+cargo run -p eris-cli -- examples/01.eris
+./01 ; echo $?       # → 120
+
+# Run an example with I/O
+cargo run -p eris-cli -- examples/03_strings.eris
+./03_strings
+
+# Dump the generated LLVM IR alongside the binary
+cargo run -p eris-cli -- --emit-ir examples/03_strings.eris
+
+# Place outputs in a specific directory instead of the current one
+cargo run -p eris-cli -- -o ./build examples/01.eris
+```
+
+## Syntax
 
 ```eris
--- this is a single-line comment
--+ this is a
-   multi-line
-   comment +-
---- this is a doc-comment
+-- single-line comment
+--- doc comment
 
--- variable declaration
+-- variable declarations
 int x := 10;
-mut int y := 20;        -- vars are immutable by default
-y = 20 * 2;             -- re-assign mutable values using `=`
+mut int y := 20;        -- `mut` opts into mutability
+y = y * 2;              -- re-assignment uses `=`
 
 -- multiple bindings
 int a, b, c := 1, 2, 3;
-(int i, int j) := (10, 20);
 int (i, j) := (10, 20);
-mut int (x, y) := (10, 20);
-(str person_name, (int age, str address)) := ("alice", (30, "wonderland"));
 
--- blocks and expressions
-int result := {         -- blocks return the value of the last expr without a semicolon
-    int x := 10;
-    x * 2
-}                       -- result = 20
-int x := (2 + 3) * 4;   -- evaluates to 20, following PEMDAS
+-- blocks return their trailing expression
+int result := {
+    int n := 5;
+    n * n               -- no semicolon: this is the block's value
+};
 
--- control flow
-int x := 10;
-mut int y := 0;
-if x > 10 {
-    y = 1;
-} else if x = 10 {
-    y = 2;
-} else {
-    y = 3;
+-- if as expression
+int classify(int x) {
+    return if x < 0 { -1 } else if x == 0 { 0 } else { 1 };
 }
 
--- functions
+-- functions and recursion
 int factorial(int n) {
     if n <= 1 {
         return 1;
@@ -86,14 +93,36 @@ int factorial(int n) {
         return n * factorial(n - 1);
     }
 }
-int square(int x) {
-    x * x               -- implicit return, no semicolon
+
+-- I/O via built-ins
+int main() {
+    print_str("the answer is: ");
+    print_int(factorial(5));
+    println();
+    return 0;
 }
-int result := factorial(5);
-
--- lambdas
-int add := (int x, int y) => x + y;
-
--- arrays
-arr[int] n := [1, 2, 3]; -- fixed-length array of integers
 ```
+
+## Project layout
+
+```
+crates/
+  eris-compiler/     library: lexer, parser, analyzer, LLVM IR codegen
+  eris-cli/          binary: the `eris` command-line driver
+examples/            sample programs
+```
+
+The compiler is a library first. Future tooling (MCP server, LLM diagnostic client, evaluation harness) will live as sibling crates that depend on `eris-compiler` and never reach into its internals.
+
+## Development
+
+```bash
+cargo test --workspace          # full test suite
+cargo check --workspace
+cargo fmt
+cargo clippy --workspace
+```
+
+## License
+
+MIT.
