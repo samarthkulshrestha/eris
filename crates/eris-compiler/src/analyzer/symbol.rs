@@ -21,12 +21,6 @@ pub struct Scope {
 }
 
 impl Scope {
-    pub fn _new() -> Self {
-        Scope {
-            symbols: HashMap::new(),
-        }
-    }
-
     pub fn declare(&mut self, name: &str, symbol: Symbol) -> Result<(), String> {
         if self.symbols.contains_key(name) {
             return Err(format!("Symbol '{}' already declared in this scope.", name));
