@@ -1,13 +1,16 @@
 use std::env;
-use std::error::Error;
+use std::process;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
         eprintln!("Usage: {} <source_file>", args[0]);
-        std::process::exit(1);
+        process::exit(1);
     }
 
-    eris::process_file(&args[1])
+    if let Err(e) = eris::process_file(&args[1]) {
+        eprint!("{}", e);
+        process::exit(1);
+    }
 }
