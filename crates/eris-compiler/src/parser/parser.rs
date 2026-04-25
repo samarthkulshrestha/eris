@@ -83,6 +83,7 @@ impl crate::error_display::FormattedError for ParseError {
 impl From<ParseError> for crate::diagnostics::Diagnostic {
     fn from(err: ParseError) -> Self {
         use crate::diagnostics::{Diagnostic, ErrorCode, Severity};
+        use crate::error_display::FormattedError;
         use serde_json::{Map, Value};
 
         let location = err
@@ -93,6 +94,17 @@ impl From<ParseError> for crate::diagnostics::Diagnostic {
         match err.kind {
             ParseErrorKind::LexerError(inner) => Diagnostic::from(inner),
             ParseErrorKind::UnexpectedToken { expected, found } => {
+                let hint = {
+                    // Re-construct a temporary ParseError to call hint() via the trait.
+                    let tmp = ParseError {
+                        kind: ParseErrorKind::UnexpectedToken {
+                            expected: expected.clone(),
+                            found: found.clone(),
+                        },
+                        location: None,
+                    };
+                    tmp.hint()
+                };
                 let mut fields = Map::new();
                 fields.insert("expected".to_string(), Value::String(expected.clone()));
                 let found_str = found
@@ -111,7 +123,7 @@ impl From<ParseError> for crate::diagnostics::Diagnostic {
                     message,
                     location,
                     labels: vec![],
-                    hint: None,
+                    hint,
                     fields,
                 }
             }

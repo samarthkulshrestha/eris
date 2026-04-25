@@ -32,6 +32,7 @@ impl AnalyzeError {
 impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
     fn from(err: AnalyzeError) -> Self {
         use crate::diagnostics::{Diagnostic, ErrorCode, Severity};
+        use crate::error_display::FormattedError;
         use serde_json::{Map, Value};
 
         let (code, message, fields) = match &err.kind {
@@ -102,7 +103,7 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
             message,
             location: err.location.clone(),
             labels: vec![],
-            hint: None,
+            hint: err.hint(),
             fields,
         }
     }

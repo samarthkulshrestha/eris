@@ -199,6 +199,7 @@ impl Error for LexerError {}
 impl From<LexerError> for crate::diagnostics::Diagnostic {
     fn from(err: LexerError) -> Self {
         use crate::diagnostics::{Diagnostic, ErrorCode, Severity};
+        use crate::error_display::FormattedError;
         use serde_json::{Map, Value};
 
         let (code, message, fields) = match &err.kind {
@@ -228,7 +229,7 @@ impl From<LexerError> for crate::diagnostics::Diagnostic {
             message,
             location: err.location.clone(),
             labels: vec![],
-            hint: None,
+            hint: err.hint(),
             fields,
         }
     }
