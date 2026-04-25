@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::Serialize;
 
 /// Stable error codes. Once assigned, NEVER reuse.
@@ -9,6 +10,7 @@ use serde::Serialize;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(into = "&'static str")]
 pub enum ErrorCode {
+    // (JsonSchema is implemented manually below to emit a string enum schema)
     E0001,
     E0002,
     E0101,
@@ -41,6 +43,37 @@ impl ErrorCode {
 impl From<ErrorCode> for &'static str {
     fn from(c: ErrorCode) -> Self {
         c.as_str()
+    }
+}
+
+impl JsonSchema for ErrorCode {
+    fn schema_name() -> String {
+        "ErrorCode".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        use schemars::schema::{InstanceType, SchemaObject, StringValidation};
+        let mut schema = SchemaObject {
+            instance_type: Some(InstanceType::String.into()),
+            ..Default::default()
+        };
+        schema.enum_values = Some(vec![
+            serde_json::json!("E0001"),
+            serde_json::json!("E0002"),
+            serde_json::json!("E0101"),
+            serde_json::json!("E0102"),
+            serde_json::json!("E0201"),
+            serde_json::json!("E0202"),
+            serde_json::json!("E0203"),
+            serde_json::json!("E0204"),
+            serde_json::json!("E0205"),
+            serde_json::json!("E0206"),
+        ]);
+        schema.string = Some(Box::new(StringValidation {
+            pattern: Some(r"^E\d{4}$".to_string()),
+            ..Default::default()
+        }));
+        schemars::schema::Schema::Object(schema)
     }
 }
 

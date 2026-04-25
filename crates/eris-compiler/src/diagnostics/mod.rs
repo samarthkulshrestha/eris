@@ -1,4 +1,5 @@
 use crate::lexer::SourceLocation;
+use schemars::JsonSchema;
 use serde::Serialize;
 use serde_json::Map;
 
@@ -7,7 +8,7 @@ pub mod json;
 
 pub use codes::ErrorCode;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
@@ -15,13 +16,13 @@ pub enum Severity {
     Note,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct Label {
     pub location: SourceLocation,
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct Diagnostic {
     pub code: ErrorCode,
     pub severity: Severity,
@@ -29,7 +30,10 @@ pub struct Diagnostic {
     pub location: SourceLocation,
     pub labels: Vec<Label>,
     pub hint: Option<String>,
+    // Note: `fields` carries variant-specific structured data; omitted from the
+    // JSON Schema since its shape varies per error code.
     #[serde(flatten)]
+    #[schemars(skip)]
     pub fields: Map<String, serde_json::Value>,
 }
 

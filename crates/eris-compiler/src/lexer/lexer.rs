@@ -1,4 +1,5 @@
 use logos::Logos;
+use schemars::JsonSchema;
 use serde::Serialize;
 use std::fmt;
 use std::error::Error;
@@ -262,7 +263,7 @@ impl crate::error_display::FormattedError for LexerError {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, JsonSchema)]
 pub struct SourceLocation {
     pub line: usize,
     pub column: usize,

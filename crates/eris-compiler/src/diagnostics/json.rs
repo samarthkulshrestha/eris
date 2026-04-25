@@ -1,9 +1,10 @@
 use super::Diagnostic;
+use schemars::JsonSchema;
 use serde::Serialize;
 
 pub const SCHEMA_VERSION: &str = "1.0";
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 pub struct DiagnosticEnvelope {
     pub schema_version: &'static str,
     pub compiler_version: &'static str,

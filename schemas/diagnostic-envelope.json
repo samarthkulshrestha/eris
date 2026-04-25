@@ -1,0 +1,120 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DiagnosticEnvelope",
+  "type": "object",
+  "required": [
+    "compiler_version",
+    "diagnostics",
+    "schema_version"
+  ],
+  "properties": {
+    "compiler_version": {
+      "type": "string"
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Diagnostic"
+      }
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Diagnostic": {
+      "type": "object",
+      "required": [
+        "code",
+        "labels",
+        "location",
+        "message",
+        "severity"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/definitions/ErrorCode"
+        },
+        "hint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Label"
+          }
+        },
+        "location": {
+          "$ref": "#/definitions/SourceLocation"
+        },
+        "message": {
+          "type": "string"
+        },
+        "severity": {
+          "$ref": "#/definitions/Severity"
+        }
+      }
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "E0001",
+        "E0002",
+        "E0101",
+        "E0102",
+        "E0201",
+        "E0202",
+        "E0203",
+        "E0204",
+        "E0205",
+        "E0206"
+      ],
+      "pattern": "^E\\d{4}$"
+    },
+    "Label": {
+      "type": "object",
+      "required": [
+        "location",
+        "message"
+      ],
+      "properties": {
+        "location": {
+          "$ref": "#/definitions/SourceLocation"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    },
+    "Severity": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warning",
+        "note"
+      ]
+    },
+    "SourceLocation": {
+      "type": "object",
+      "required": [
+        "column",
+        "line"
+      ],
+      "properties": {
+        "column": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "line": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        }
+      }
+    }
+  }
+}
