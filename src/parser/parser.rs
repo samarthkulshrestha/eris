@@ -31,6 +31,56 @@ impl From<LexerError> for ParseError {
     }
 }
 
+impl crate::error_display::FormattedError for ParseError {
+    fn error_type(&self) -> &str {
+        match &self.kind {
+            ParseErrorKind::UnexpectedToken { .. } => "unexpected token",
+            ParseErrorKind::InvalidSyntax(_) => "invalid syntax",
+            ParseErrorKind::LexerError(_) => "lexer error",
+        }
+    }
+
+    fn message(&self) -> String {
+        match &self.kind {
+            ParseErrorKind::UnexpectedToken { expected, found } => {
+                if let Some(token) = found {
+                    format!("Expected {}, found {:?}", expected, token)
+                } else {
+                    format!("Expected {}, found end of file", expected)
+                }
+            }
+            ParseErrorKind::InvalidSyntax(msg) => msg.clone(),
+            ParseErrorKind::LexerError(err) => err.to_string(),
+        }
+    }
+
+    fn location(&self) -> &crate::lexer::SourceLocation {
+        static DEFAULT_LOCATION: crate::lexer::SourceLocation = crate::lexer::SourceLocation {
+            line: 0,
+            column: 0,
+        };
+
+        if let Some(loc) = &self.location {
+            loc
+        } else {
+            &DEFAULT_LOCATION
+        }
+    }
+
+    fn hint(&self) -> Option<String> {
+        match &self.kind {
+            ParseErrorKind::UnexpectedToken { expected, .. } => {
+                if expected.contains("Semicolon") {
+                    Some("did you forget a semicolon?".to_string())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Parser {
     tokens: Peekable<IntoIter<(Token, SourceLocation)>>,
@@ -210,32 +260,22 @@ impl Parser {
             }
 
             Some((Token::Ident(_name), _)) => {
-                // Check if we're looking at a function declaration
-                let mut is_func_decl = false;
-                let mut lookahead = self.tokens.clone();
-                if let Some((Token::LParen, _)) = lookahead.next() {
-                    is_func_decl = true;
-                }
+                // Parse as expression (could be function call, identifier, etc.)
+                let expr = self.parse_expression()?;
 
-                if is_func_decl {
-                    self.parse_function_declaration()?.kind
-                } else {
-                    // It's either an assignment or an expression statement
-                    let expr = self.parse_expression()?;
-
-                    // Check if this is an assignment
-                    if self.current_is(&[Token::Assign]) {
-                        self.advance(); // consume '='
-                        let value = self.parse_expression()?;
-                        self.expect(&[Token::Semicolon])?;
-                        StmtKind::Assignment {
-                            target: expr,
-                            value,
-                        }
-                    } else {
-                        self.expect(&[Token::Semicolon])?;
-                        StmtKind::ExprStmt(expr)
+                // Check if this is an assignment
+                if self.current_is(&[Token::Assign]) {
+                    self.advance(); // consume '='
+                    let value = self.parse_expression()?;
+                    self.expect(&[Token::Semicolon])?;
+                    StmtKind::Assignment {
+                        target: expr,
+                        value,
                     }
+                } else {
+                    // Expression statement (including function calls)
+                    self.expect(&[Token::Semicolon])?;
+                    StmtKind::ExprStmt(expr)
                 }
             }
 

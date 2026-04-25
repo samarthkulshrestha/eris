@@ -13,3 +13,4 @@ overflow-checks = true
 
 [dependencies]
 logos = "0.15.0"
+inkwell = { version = "0.5", features = ["llvm17-0"] }

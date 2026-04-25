@@ -188,6 +188,35 @@ impl fmt::Display for LexerError {
 
 impl Error for LexerError {}
 
+impl crate::error_display::FormattedError for LexerError {
+    fn error_type(&self) -> &str {
+        match &self.kind {
+            LexerErrorKind::InvalidIdentifier(_) => "invalid identifier",
+            LexerErrorKind::InvalidToken(_) => "invalid token",
+        }
+    }
+
+    fn message(&self) -> String {
+        match &self.kind {
+            LexerErrorKind::InvalidIdentifier(s) => format!("Invalid identifier: '{}'", s),
+            LexerErrorKind::InvalidToken(s) => format!("Invalid token: '{}'", s),
+        }
+    }
+
+    fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+
+    fn hint(&self) -> Option<String> {
+        match &self.kind {
+            LexerErrorKind::InvalidIdentifier(_) => {
+                Some("identifiers cannot start with a digit".to_string())
+            }
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SourceLocation {
     pub line: usize,

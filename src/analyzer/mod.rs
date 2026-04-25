@@ -15,10 +15,62 @@ pub struct Analyzer {
 
 impl Analyzer {
     pub fn new() -> Self {
-        Analyzer {
+        let mut analyzer = Analyzer {
             scopes: vec![Scope::default()],
             errors: Vec::new(),
-        }
+        };
+
+        // Register built-in I/O functions
+        analyzer.register_builtin_functions();
+
+        analyzer
+    }
+
+    /// Register built-in I/O functions in the global scope
+    fn register_builtin_functions(&mut self) {
+        use crate::parser::ast::TypeKind;
+
+        // print_int(int) -> void
+        let _ = self.declare("print_int", Symbol::Function {
+            name: "print_int".to_string(),
+            parameters: vec![TypeKind::Int],
+            return_type: None,
+        });
+
+        // print_bool(bool) -> void
+        let _ = self.declare("print_bool", Symbol::Function {
+            name: "print_bool".to_string(),
+            parameters: vec![TypeKind::Bool],
+            return_type: None,
+        });
+
+        // print_char(char) -> void
+        let _ = self.declare("print_char", Symbol::Function {
+            name: "print_char".to_string(),
+            parameters: vec![TypeKind::Char],
+            return_type: None,
+        });
+
+        // print_str(str) -> void
+        let _ = self.declare("print_str", Symbol::Function {
+            name: "print_str".to_string(),
+            parameters: vec![TypeKind::Str],
+            return_type: None,
+        });
+
+        // println() -> void
+        let _ = self.declare("println", Symbol::Function {
+            name: "println".to_string(),
+            parameters: vec![],
+            return_type: None,
+        });
+
+        // read_int() -> int
+        let _ = self.declare("read_int", Symbol::Function {
+            name: "read_int".to_string(),
+            parameters: vec![],
+            return_type: Some(TypeKind::Int),
+        });
     }
 
     fn enter_scope(&mut self) {
