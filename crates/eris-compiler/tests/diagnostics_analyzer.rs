@@ -3,6 +3,9 @@ use eris_compiler::analyzer::AnalyzeErrorKind;
 use eris_compiler::diagnostics::{Diagnostic, ErrorCode};
 use eris_compiler::lexer::SourceLocation;
 use eris_compiler::parser::ast::TypeKind;
+use eris_compiler::analyzer::Analyzer;
+use eris_compiler::lexer::Lexer;
+use eris_compiler::parser::Parser;
 
 #[test]
 fn analyze_type_mismatch_emits_e0203_with_type_fields() {
@@ -49,4 +52,24 @@ fn analyze_incorrect_arg_count_emits_e0204_with_numbers() {
     assert_eq!(d.code, ErrorCode::E0204);
     assert_eq!(d.fields.get("expected").and_then(|v| v.as_u64()), Some(3));
     assert_eq!(d.fields.get("found").and_then(|v| v.as_u64()), Some(1));
+}
+
+#[test]
+fn undeclared_var_does_not_trigger_spurious_type_mismatch() {
+    let source = "int main() { return undefined_var; }";
+    let mut lex = Lexer::new(source);
+    let toks = lex.tokenize().unwrap();
+    let mut parser = Parser::new(toks);
+    let program = parser.parse_program().unwrap();
+    let mut analyzer = Analyzer::new();
+    let errors = analyzer.analyze_program(&program).unwrap_err();
+
+    // Should produce E0201 (undeclared variable) but NOT E0203 (type mismatch).
+    let codes: Vec<_> = errors.iter().map(|e| match &e.kind {
+        AnalyzeErrorKind::UndeclaredVariable(_) => "E0201",
+        AnalyzeErrorKind::TypeMismatch { .. } => "E0203",
+        _ => "other",
+    }).collect();
+    assert!(codes.contains(&"E0201"), "expected E0201, got {:?}", codes);
+    assert!(!codes.contains(&"E0203"), "should not emit spurious E0203, got {:?}", codes);
 }

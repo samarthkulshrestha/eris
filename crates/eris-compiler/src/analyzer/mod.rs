@@ -170,14 +170,16 @@ impl Analyzer {
                 let target_type = self.analyze_expression(target, None);
                 let value_type = self.analyze_expression(value, None);
 
-                if target_type != value_type {
-                    self.errors.push(AnalyzeError::new(
-                        AnalyzeErrorKind::TypeMismatch {
-                            expected: target_type.clone().unwrap_or(TypeKind::Int),
-                            found: value_type.clone().unwrap_or(TypeKind::Int),
-                        },
-                        statement.location.clone(),
-                    ));
+                if let (Some(a), Some(b)) = (&target_type, &value_type) {
+                    if a != b {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::TypeMismatch {
+                                expected: a.clone(),
+                                found: b.clone(),
+                            },
+                            statement.location.clone(),
+                        ));
+                    }
                 }
             }
             StmtKind::FuncDecl {
@@ -226,14 +228,16 @@ impl Analyzer {
             StmtKind::ReturnStmt(expr) => {
                 let expr_type = expr.as_ref().and_then(|e| self.analyze_expression(e, expected_return_type.clone()));
 
-                if expected_return_type != expr_type {
-                    self.errors.push(AnalyzeError::new(
-                        AnalyzeErrorKind::TypeMismatch {
-                            expected: expected_return_type.clone().unwrap_or(TypeKind::Int),
-                            found: expr_type.clone().unwrap_or(TypeKind::Int),
-                        },
-                        statement.location.clone(),
-                    ));
+                if let (Some(expected), Some(found)) = (&expected_return_type, &expr_type) {
+                    if expected != found {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::TypeMismatch {
+                                expected: expected.clone(),
+                                found: found.clone(),
+                            },
+                            statement.location.clone(),
+                        ));
+                    }
                 }
             }
             _ => {}
@@ -257,14 +261,16 @@ impl Analyzer {
                     // Check that all elements have the same type
                     for elem in &elements[1..] {
                         let elem_type = self.analyze_expression(elem, None);
-                        if elem_type != Some(first_type.clone()) {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::TypeMismatch {
-                                    expected: first_type.clone(),
-                                    found: elem_type.clone().unwrap_or(TypeKind::Int),
-                                },
-                                elem.location.clone(),
-                            ));
+                        if let Some(found) = &elem_type {
+                            if *found != first_type {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: first_type.clone(),
+                                        found: found.clone(),
+                                    },
+                                    elem.location.clone(),
+                                ));
+                            }
                         }
                     }
 
@@ -298,38 +304,55 @@ impl Analyzer {
 
                 match op {
                     BinOp::Add | BinOp::Sub | BinOp::Mul | BinOp::Div | BinOp::Rem => {
-                        if left_type != right_type {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::TypeMismatch {
-                                    expected: left_type.clone().unwrap_or(TypeKind::Int),
-                                    found: right_type.clone().unwrap_or(TypeKind::Int),
-                                },
-                                expression.location.clone(),
-                            ));
+                        if let (Some(a), Some(b)) = (&left_type, &right_type) {
+                            if a != b {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: a.clone(),
+                                        found: b.clone(),
+                                    },
+                                    expression.location.clone(),
+                                ));
+                            }
                         }
                         left_type
                     }
                     BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => {
-                        if left_type != right_type {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::TypeMismatch {
-                                    expected: left_type.clone().unwrap_or(TypeKind::Int),
-                                    found: right_type.clone().unwrap_or(TypeKind::Int),
-                                },
-                                expression.location.clone(),
-                            ));
+                        if let (Some(a), Some(b)) = (&left_type, &right_type) {
+                            if a != b {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: a.clone(),
+                                        found: b.clone(),
+                                    },
+                                    expression.location.clone(),
+                                ));
+                            }
                         }
                         Some(TypeKind::Bool)
                     }
                     BinOp::LAnd | BinOp::LOr => {
-                        if left_type != Some(TypeKind::Bool) || right_type != Some(TypeKind::Bool) {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::TypeMismatch {
-                                    expected: TypeKind::Bool,
-                                    found: left_type.clone().unwrap_or(TypeKind::Int),
-                                },
-                                expression.location.clone(),
-                            ));
+                        if let Some(a) = &left_type {
+                            if *a != TypeKind::Bool {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: TypeKind::Bool,
+                                        found: a.clone(),
+                                    },
+                                    expression.location.clone(),
+                                ));
+                            }
+                        }
+                        if let Some(b) = &right_type {
+                            if *b != TypeKind::Bool {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: TypeKind::Bool,
+                                        found: b.clone(),
+                                    },
+                                    expression.location.clone(),
+                                ));
+                            }
                         }
                         Some(TypeKind::Bool)
                     }
@@ -357,14 +380,16 @@ impl Analyzer {
 
                     for (arg, param_type) in arguments.iter().zip(parameters.iter()) {
                         let arg_type = self.analyze_expression(arg, None);
-                        if arg_type.as_ref() != Some(param_type) {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::TypeMismatch {
-                                    expected: param_type.clone(),
-                                    found: arg_type.clone().unwrap_or(TypeKind::Int),
-                                },
-                                arg.location.clone(),
-                            ));
+                        if let Some(found) = &arg_type {
+                            if found != param_type {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: param_type.clone(),
+                                        found: found.clone(),
+                                    },
+                                    arg.location.clone(),
+                                ));
+                            }
                         }
                     }
                     return_type
@@ -392,14 +417,16 @@ impl Analyzer {
                 else_branch,
             } => {
                 let cond_type = self.analyze_expression(condition, None);
-                if cond_type != Some(TypeKind::Bool) {
-                    self.errors.push(AnalyzeError::new(
-                        AnalyzeErrorKind::TypeMismatch {
-                            expected: TypeKind::Bool,
-                            found: cond_type.clone().unwrap_or(TypeKind::Int),
-                        },
-                        condition.location.clone(),
-                    ));
+                if let Some(found) = &cond_type {
+                    if *found != TypeKind::Bool {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::TypeMismatch {
+                                expected: TypeKind::Bool,
+                                found: found.clone(),
+                            },
+                            condition.location.clone(),
+                        ));
+                    }
                 }
 
                 let then_type = then_branch
@@ -408,14 +435,16 @@ impl Analyzer {
 
                 if let Some(else_branch) = else_branch {
                     let else_type = self.analyze_expression(else_branch, expected_return_type);
-                    if then_type != else_type {
-                        self.errors.push(AnalyzeError::new(
-                            AnalyzeErrorKind::TypeMismatch {
-                                expected: then_type.clone().unwrap_or(TypeKind::Int),
-                                found: else_type.clone().unwrap_or(TypeKind::Int),
-                            },
-                            expression.location.clone(),
-                        ));
+                    if let (Some(a), Some(b)) = (&then_type, &else_type) {
+                        if a != b {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::TypeMismatch {
+                                    expected: a.clone(),
+                                    found: b.clone(),
+                                },
+                                expression.location.clone(),
+                            ));
+                        }
                     }
                     then_type
                 } else {
@@ -429,27 +458,31 @@ impl Analyzer {
                 match op {
                     UnaryOp::LNot => {
                         // Logical NOT requires Bool operand
-                        if expr_type != Some(TypeKind::Bool) {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::TypeMismatch {
-                                    expected: TypeKind::Bool,
-                                    found: expr_type.clone().unwrap_or(TypeKind::Int),
-                                },
-                                expr.location.clone(),
-                            ));
+                        if let Some(found) = &expr_type {
+                            if *found != TypeKind::Bool {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: TypeKind::Bool,
+                                        found: found.clone(),
+                                    },
+                                    expr.location.clone(),
+                                ));
+                            }
                         }
                         Some(TypeKind::Bool)
                     }
                     UnaryOp::BNot => {
                         // Bitwise NOT requires Int operand
-                        if expr_type != Some(TypeKind::Int) {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::TypeMismatch {
-                                    expected: TypeKind::Int,
-                                    found: expr_type.clone().unwrap_or(TypeKind::Int),
-                                },
-                                expr.location.clone(),
-                            ));
+                        if let Some(found) = &expr_type {
+                            if *found != TypeKind::Int {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: TypeKind::Int,
+                                        found: found.clone(),
+                                    },
+                                    expr.location.clone(),
+                                ));
+                            }
                         }
                         Some(TypeKind::Int)
                     }
@@ -458,16 +491,17 @@ impl Analyzer {
                         match expr_type {
                             Some(TypeKind::Int) => Some(TypeKind::Int),
                             Some(TypeKind::Float) => Some(TypeKind::Float),
-                            _ => {
+                            Some(other) => {
                                 self.errors.push(AnalyzeError::new(
                                     AnalyzeErrorKind::TypeMismatch {
                                         expected: TypeKind::Float,
-                                        found: expr_type.clone().unwrap_or(TypeKind::Int),
+                                        found: other,
                                     },
                                     expr.location.clone(),
                                 ));
                                 None
                             }
+                            None => None,
                         }
                     }
                 }
