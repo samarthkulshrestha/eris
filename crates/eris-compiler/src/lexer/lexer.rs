@@ -195,6 +195,44 @@ impl fmt::Display for LexerError {
 
 impl Error for LexerError {}
 
+impl From<LexerError> for crate::diagnostics::Diagnostic {
+    fn from(err: LexerError) -> Self {
+        use crate::diagnostics::{Diagnostic, ErrorCode, Severity};
+        use serde_json::{Map, Value};
+
+        let (code, message, fields) = match &err.kind {
+            LexerErrorKind::InvalidIdentifier(s) => {
+                let mut m = Map::new();
+                m.insert("identifier".to_string(), Value::String(s.clone()));
+                (
+                    ErrorCode::E0001,
+                    format!("invalid identifier: '{}'", s),
+                    m,
+                )
+            }
+            LexerErrorKind::InvalidToken(s) => {
+                let mut m = Map::new();
+                m.insert("token".to_string(), Value::String(s.clone()));
+                (
+                    ErrorCode::E0002,
+                    format!("invalid token: '{}'", s),
+                    m,
+                )
+            }
+        };
+
+        Diagnostic {
+            code,
+            severity: Severity::Error,
+            message,
+            location: err.location.clone(),
+            labels: vec![],
+            hint: None,
+            fields,
+        }
+    }
+}
+
 impl crate::error_display::FormattedError for LexerError {
     fn error_type(&self) -> &str {
         match &self.kind {
