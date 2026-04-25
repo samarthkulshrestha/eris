@@ -476,3 +476,339 @@ impl Analyzer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+
+    fn analyze_source(source: &str) -> Result<(), Vec<AnalyzeError>> {
+        let mut lexer = Lexer::new(source);
+        let tokens = lexer.tokenize().unwrap();
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse_program().unwrap();
+        let mut analyzer = Analyzer::new();
+        analyzer.analyze_program(&program)
+    }
+
+    #[test]
+    fn test_simple_variable_declaration() {
+        let source = "int x := 10;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_mutable_variable_declaration() {
+        let source = "mut int y := 20;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_type_mismatch_in_variable_declaration() {
+        let source = "int x := 3.14;";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert!(matches!(errors[0].kind, AnalyzeErrorKind::TypeMismatch { .. }));
+    }
+
+    #[test]
+    fn test_undeclared_variable() {
+        let source = "int x := y;";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::UndeclaredVariable(name) if name == "y")));
+    }
+
+    #[test]
+    fn test_assignment_to_immutable() {
+        let source = "int x := 10; x = 20;";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::AssignmentToImmutable(_))));
+    }
+
+    #[test]
+    fn test_assignment_to_mutable() {
+        let source = "mut int x := 10; x = 20;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_function_declaration() {
+        let source = "int add(int a, int b) { return a + b; }";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_function_call() {
+        let source = r#"
+            int add(int a, int b) { return a + b; }
+            int x := add(1, 2);
+        "#;
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_undeclared_function() {
+        let source = "int x := add(1, 2);";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::UndeclaredFunction(name) if name == "add")));
+    }
+
+    #[test]
+    fn test_incorrect_argument_count() {
+        let source = r#"
+            int add(int a, int b) { return a + b; }
+            int x := add(1, 2, 3);
+        "#;
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::IncorrectArgumentCount { .. })));
+    }
+
+    #[test]
+    fn test_incorrect_argument_type() {
+        let source = r#"
+            int add(int a, int b) { return a + b; }
+            int x := add(1, 3.14);
+        "#;
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_binary_operation_type_checking() {
+        let source = "int x := 5 + 10;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_binary_operation_type_mismatch() {
+        let source = "int x := 5 + 3.14;";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_comparison_operators() {
+        let source = "bool result := 5 > 3;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_logical_operators() {
+        let source = "bool x := true && false;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_logical_operator_type_error() {
+        let source = "bool x := 5 && 10;";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_if_expression_type_checking() {
+        let source = "int x := if true { 1 } else { 2 };";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_if_condition_must_be_bool() {
+        let source = "int x := if 5 { 1 } else { 2 };";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_if_branch_type_mismatch() {
+        let source = "int x := if true { 1 } else { 3.14 };";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_block_expression_scoping() {
+        let source = r#"
+            int x := 10;
+            int y := {
+                int z := 5;
+                z + 1
+            };
+        "#;
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_variable_shadowing() {
+        let source = r#"
+            int x := 10;
+            int y := {
+                int x := 20;
+                x + 1
+            };
+        "#;
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_function_scope() {
+        let source = r#"
+            int foo(int a) {
+                int b := a + 1;
+                return b;
+            }
+        "#;
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_duplicate_variable_declaration() {
+        let source = "int x := 10; int x := 20;";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::VariableAlreadyDeclared(_))));
+    }
+
+    #[test]
+    fn test_unary_negation() {
+        let source = "int x := -5;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_unary_logical_not() {
+        let source = "bool x := !true;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_unary_logical_not_type_error() {
+        let source = "bool x := !5;";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_array_literal_homogeneous() {
+        let source = "arr[int] nums := [1, 2, 3];";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_array_literal_heterogeneous() {
+        let source = "arr[int] nums := [1, 2, 3.14];";
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_return_type_checking() {
+        let source = r#"
+            int get_number() {
+                return 42;
+            }
+        "#;
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_return_type_mismatch() {
+        let source = r#"
+            int get_number() {
+                return 3.14;
+            }
+        "#;
+        let result = analyze_source(source);
+
+        assert!(result.is_err());
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_tuple_destructuring() {
+        let source = "int (a, b) := (1, 2);";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_multiple_variable_bindings() {
+        // The syntax is: int x, y := 1, 2; (same type, multiple variables)
+        let source = "int x, y := 1, 2;";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_complex_expression() {
+        let source = "int x := (1 + 2) * (3 - 4);";
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_nested_function_calls() {
+        let source = r#"
+            int add(int a, int b) { return a + b; }
+            int mul(int a, int b) { return a * b; }
+            int result := add(mul(2, 3), mul(4, 5));
+        "#;
+        let result = analyze_source(source);
+        assert!(result.is_ok());
+    }
+}

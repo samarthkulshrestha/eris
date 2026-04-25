@@ -1063,3 +1063,448 @@ fn token_matches(expected: &Token, actual: &Token) -> bool {
         (a, b) => std::mem::discriminant(a) == std::mem::discriminant(b),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::Lexer;
+
+    fn parse_source(source: &str) -> Result<Program, ParseError> {
+        let mut lexer = Lexer::new(source);
+        let tokens = lexer.tokenize().unwrap();
+        let mut parser = Parser::new(tokens);
+        parser.parse_program()
+    }
+
+    #[test]
+    fn test_simple_variable_declaration() {
+        let source = "int x := 10;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { ident, mutable, typ, .. } => {
+                assert_eq!(ident.name, "x");
+                assert!(!mutable);
+                assert!(matches!(typ.as_ref().unwrap().kind, TypeKind::Int));
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_mutable_variable_declaration() {
+        let source = "mut int y := 20;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { ident, mutable, .. } => {
+                assert_eq!(ident.name, "y");
+                assert!(mutable);
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_multiple_variable_declarations() {
+        // The syntax is: int x, y := 1, 2; (same type, multiple variables)
+        let source = "int x, y := 1, 2;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 2);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { ident, .. } => assert_eq!(ident.name, "x"),
+            _ => panic!("Expected VarDecl"),
+        }
+        match &program.statements[1].kind {
+            StmtKind::VarDecl { ident, .. } => assert_eq!(ident.name, "y"),
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_tuple_destructuring() {
+        let source = "int (a, b) := (1, 2);";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 2);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { ident, .. } => assert_eq!(ident.name, "a"),
+            _ => panic!("Expected VarDecl"),
+        }
+        match &program.statements[1].kind {
+            StmtKind::VarDecl { ident, .. } => assert_eq!(ident.name, "b"),
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_function_declaration() {
+        let source = "int add(int a, int b) { return a + b; }";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { name, parameters, return_type, .. } => {
+                assert_eq!(name.name, "add");
+                assert_eq!(parameters.len(), 2);
+                assert!(matches!(return_type.as_ref().unwrap().kind, TypeKind::Int));
+            }
+            _ => panic!("Expected FuncDecl"),
+        }
+    }
+
+    #[test]
+    fn test_function_with_no_params() {
+        let source = "int get_value() { return 42; }";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { name, parameters, .. } => {
+                assert_eq!(name.name, "get_value");
+                assert_eq!(parameters.len(), 0);
+            }
+            _ => panic!("Expected FuncDecl"),
+        }
+    }
+
+    #[test]
+    fn test_binary_expressions() {
+        let source = "int x := 1 + 2 * 3;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                // Should parse as 1 + (2 * 3) due to precedence
+                match &initializer.kind {
+                    ExprKind::BinaryExpr { op, .. } => {
+                        assert!(matches!(op, BinOp::Add));
+                    }
+                    _ => panic!("Expected BinaryExpr"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_comparison_operators() {
+        let source = "bool result := 5 > 3;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::BinaryExpr { op, .. } => {
+                        assert!(matches!(op, BinOp::Gt));
+                    }
+                    _ => panic!("Expected BinaryExpr"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_unary_expressions() {
+        let source = "int x := -5;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::UnaryExpr { op, .. } => {
+                        assert!(matches!(op, crate::parser::ast::UnaryOp::Neg));
+                    }
+                    _ => panic!("Expected UnaryExpr"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_logical_not() {
+        let source = "bool x := !true;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::UnaryExpr { op, .. } => {
+                        assert!(matches!(op, crate::parser::ast::UnaryOp::LNot));
+                    }
+                    _ => panic!("Expected UnaryExpr"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_if_expression() {
+        let source = "int x := if true { 1 } else { 2 };";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::IfExpr { condition, then_branch, else_branch } => {
+                        assert!(matches!(condition.kind, ExprKind::BoolTrue));
+                        assert!(then_branch.is_some());
+                        assert!(else_branch.is_some());
+                    }
+                    _ => panic!("Expected IfExpr"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_function_call() {
+        let source = "int result := add(1, 2);";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::FunctionCall { function, arguments } => {
+                        assert_eq!(function.name, "add");
+                        assert_eq!(arguments.len(), 2);
+                    }
+                    _ => panic!("Expected FunctionCall"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_assignment_statement() {
+        let source = "mut int x := 10; x = 20;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 2);
+        match &program.statements[1].kind {
+            StmtKind::Assignment { .. } => {
+                // Successfully parsed assignment
+            }
+            _ => panic!("Expected Assignment"),
+        }
+    }
+
+    #[test]
+    fn test_return_statement() {
+        let source = "int foo() { return 42; }";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => {
+                match &body.kind {
+                    ExprKind::BlockExpr { statements, .. } => {
+                        assert_eq!(statements.len(), 1);
+                        assert!(matches!(statements[0].kind, StmtKind::ReturnStmt(_)));
+                    }
+                    _ => panic!("Expected BlockExpr"),
+                }
+            }
+            _ => panic!("Expected FuncDecl"),
+        }
+    }
+
+    #[test]
+    fn test_block_expression() {
+        let source = "int x := { int y := 5; y + 1 };";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::BlockExpr { statements, ret } => {
+                        assert_eq!(statements.len(), 1);
+                        assert!(ret.is_some());
+                    }
+                    _ => panic!("Expected BlockExpr"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_tuple_expression() {
+        let source = "int x := (1, 2, 3);";
+        let _program = parse_source(source).unwrap();
+
+        // Note: This will result in tuple destructuring since we have
+        // int (x) which is parsed as tuple pattern
+        // Let's test a simpler case
+        let source2 = "int x := (1,);";
+        let mut lexer = Lexer::new(source2);
+        let tokens = lexer.tokenize().unwrap();
+        let mut parser = Parser::new(tokens);
+        let program2 = parser.parse_program().unwrap();
+
+        // The parser should handle this somehow
+        assert!(!program2.statements.is_empty());
+    }
+
+    #[test]
+    fn test_array_literal() {
+        let source = "arr[int] nums := [1, 2, 3];";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, typ, .. } => {
+                assert!(matches!(initializer.kind, ExprKind::ArrayLit(_)));
+                assert!(matches!(typ.as_ref().unwrap().kind, TypeKind::Array(_)));
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_parenthesized_expression() {
+        let source = "int x := (1 + 2) * 3;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                // Should parse as (1 + 2) * 3, not 1 + (2 * 3)
+                match &initializer.kind {
+                    ExprKind::BinaryExpr { op, left, .. } => {
+                        assert!(matches!(op, BinOp::Mul));
+                        assert!(matches!(left.kind, ExprKind::ParenExpr(_)));
+                    }
+                    _ => panic!("Expected BinaryExpr"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_nested_if_expressions() {
+        let source = "int x := if true { if false { 1 } else { 2 } } else { 3 };";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                assert!(matches!(initializer.kind, ExprKind::IfExpr { .. }));
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_char_literal() {
+        let source = "char c := 'a';";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::CharLit('a') => {},
+                    _ => panic!("Expected CharLit('a')"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_float_literal() {
+        let source = "float f := 3.14;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                assert!(matches!(initializer.kind, ExprKind::FloatLit(_)));
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let source = r#"str s := "hello";"#;
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                match &initializer.kind {
+                    ExprKind::StringLit(s) => assert_eq!(s, "hello"),
+                    _ => panic!("Expected StringLit"),
+                }
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_logical_operators() {
+        let source = "bool x := true && false || true;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                // Should parse with correct precedence
+                assert!(matches!(initializer.kind, ExprKind::BinaryExpr { .. }));
+            }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_error_unexpected_token() {
+        let source = "int x :=;";
+        let result = parse_source(source);
+
+        assert!(result.is_err());
+        match result {
+            Err(ParseError { kind: ParseErrorKind::UnexpectedToken { .. }, .. }) => {},
+            _ => panic!("Expected UnexpectedToken error"),
+        }
+    }
+
+    #[test]
+    fn test_error_missing_semicolon() {
+        let source = "int x := 10";
+        let result = parse_source(source);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_tuple_length_mismatch() {
+        let source = "int (a, b) := (1, 2, 3);";
+        let result = parse_source(source);
+
+        assert!(result.is_err());
+        match result {
+            Err(ParseError { kind: ParseErrorKind::InvalidSyntax(msg), .. }) => {
+                assert!(msg.contains("mismatch"));
+            },
+            _ => panic!("Expected InvalidSyntax error"),
+        }
+    }
+}
