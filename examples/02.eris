@@ -1,37 +1,7 @@
 -- this is a single-line comment
 --- this is a doc-comment
 
--- variable declaration
-int x := 10;
-mut int y := 20;        -- vars are immutable by default
-y = 20 * 2;             -- re-assign mutable values using `=`
-
--- multiple bindings
-int a, b, c := 1, 2, 3;
-(int i, int j) := (10, 20);
-int (i, j) := (10, 20);
-mut int (x, y) := (10, 20);
-(str person_name, (int age, str address)) := ("alice", (30, "wonderland"));
-
--- blocks and expressions
-int result := {         -- blocks return the value of the last expr without a semicolon
-    int x := 10;
-    x * 2
-}                       -- result = 20
-int x := (2 + 3) * 4;   -- evaluates to 20, following PEMDAS
-
--- control flow
-int x := 10;
-mut int y := 0;
-if x > 10 {
-    y = 1;
-} else if x = 10 {
-    y = 2;
-} else {
-    y = 3;
-}
-
--- functions
+-- functions are declared at top level
 int factorial(int n) {
     if n <= 1 {
         return 1;
@@ -39,10 +9,48 @@ int factorial(int n) {
         return n * factorial(n - 1);
     }
 }
+
 int square(int x) {
     x * x               -- implicit return, no semicolon
 }
-int result := factorial(5);
 
--- arrays
-arr[int] n := [1, 2, 3]; -- fixed-length array of integers
+int main() {
+    -- variable declaration
+    int x := 10;
+    mut int y := 20;        -- vars are immutable by default
+    y = 20 * 2;             -- re-assign mutable values using `=`
+
+    -- multiple bindings
+    int a, b, c := 1, 2, 3;
+    (int i, int j) := (10, 20);
+    int (k, l) := (10, 20);
+    mut int (mx, my) := (10, 20);
+    (str person_name, (int age, str address)) := ("alice", (30, "wonderland"));
+
+    -- blocks and expressions
+    int result := {         -- blocks return the value of the last expr without a semicolon
+        int n := 10;
+        n * 2
+    }                       -- result = 20; trailing `;` is optional after a block initializer
+    int z := (2 + 3) * 4;   -- evaluates to 20, following PEMDAS
+
+    -- control flow
+    int cx := 10;
+    mut int cy := 0;
+    if cx > 10 {
+        cy = 1;
+    } else if cx == 10 {
+        cy = 2;
+    } else {
+        cy = 3;
+    }
+
+    -- function calls
+    int fact_of_5 := factorial(5);
+    int sq := square(7);
+
+    -- arrays (parsed and type-checked, but codegen for array literals is not yet implemented)
+    -- arr[int] nums := [1, 2, 3];
+
+    return fact_of_5 + sq + cy;
+}
