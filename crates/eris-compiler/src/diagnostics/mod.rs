@@ -30,9 +30,11 @@ pub struct Diagnostic {
     pub location: SourceLocation,
     pub labels: Vec<Label>,
     pub hint: Option<String>,
-    // Note: `fields` carries variant-specific structured data; omitted from the
-    // JSON Schema since its shape varies per error code.
-    #[serde(flatten)]
+    /// Per-code structured data. The shape varies by `code`; consumers should
+    /// consult per-code documentation. Top-level keys are reserved for
+    /// cross-cutting concerns and never collide with per-code fields under this
+    /// design.
+    #[serde(skip_serializing_if = "Map::is_empty", default)]
     #[schemars(skip)]
     pub fields: Map<String, serde_json::Value>,
 }

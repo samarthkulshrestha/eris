@@ -18,9 +18,9 @@ fn json_format_emits_envelope_for_undeclared_variable() {
     assert_eq!(v["schema_version"], "1.0");
     assert_eq!(v["diagnostics"][0]["code"], "E0201");
     assert_eq!(
-        v["diagnostics"][0]["name"],
+        v["diagnostics"][0]["fields"]["name"],
         "undefined_var",
-        "name field must contain the undeclared variable name"
+        "name field must be nested under 'fields'"
     );
 }
 
