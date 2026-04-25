@@ -4,8 +4,8 @@ use std::path::Path;
 use std::process::Command;
 
 pub mod analyzer;
-pub mod codegen;
-pub mod error_display;
+pub(crate) mod codegen;
+pub(crate) mod error_display;
 pub mod lexer;
 pub mod parser;
 
