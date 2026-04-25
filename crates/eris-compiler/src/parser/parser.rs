@@ -503,8 +503,17 @@ impl Parser {
             initializers.push(self.parse_expression()?);
         }
 
-        // Expect semicolon
-        self.expect(&[Token::Semicolon])?;
+        // Block-like initializers (block expressions, if-expressions) are
+        // self-terminating: their closing brace marks the end of the
+        // statement, so the trailing semicolon is optional. For everything
+        // else the semicolon is required.
+        if initializers.len() == 1 && is_block_like_expr(&initializers[0]) {
+            if self.current_is(&[Token::Semicolon]) {
+                self.advance();
+            }
+        } else {
+            self.expect(&[Token::Semicolon])?;
+        }
 
         // Check if we have a single tuple expression on the right with multiple identifiers
         if idents.len() > 1 && initializers.len() == 1 {
@@ -1113,6 +1122,13 @@ fn token_matches(expected: &Token, actual: &Token) -> bool {
     }
 }
 
+/// True for expressions whose closing `}` is sufficient to terminate a
+/// statement — `let x := { ... }` and `let x := if c { ... } else { ... }`
+/// don't require a trailing `;`.
+fn is_block_like_expr(expr: &Expr) -> bool {
+    matches!(expr.kind, ExprKind::BlockExpr { .. } | ExprKind::IfExpr { .. })
+}
+
 /// Parser-internal representation of a tuple-destructuring pattern. Lowered
 /// into flat `VarDecl` statements after parsing.
 #[derive(Debug, Clone)]
@@ -1271,6 +1287,54 @@ mod tests {
             _ => panic!("Expected VarDecl"),
         }).collect();
         assert_eq!(names, vec!["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn test_block_initializer_trailing_semicolon_optional() {
+        // The closing brace of a block expression marks the end of the
+        // statement; the trailing semicolon is optional.
+        let source = "int result := { int n := 5; n * 2 }";
+        let program = parse_source(source).unwrap();
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { ident, initializer, .. } => {
+                assert_eq!(ident.name, "result");
+                assert!(matches!(initializer.kind, ExprKind::BlockExpr { .. }));
+            }
+            _ => panic!("Expected VarDecl with BlockExpr initializer"),
+        }
+    }
+
+    #[test]
+    fn test_block_initializer_followed_by_next_statement() {
+        // Block as initializer, no trailing ;, then another statement.
+        let source = "int a := { 1 + 2 } int b := 7;";
+        let program = parse_source(source).unwrap();
+        assert_eq!(program.statements.len(), 2);
+        match &program.statements[1].kind {
+            StmtKind::VarDecl { ident, .. } => assert_eq!(ident.name, "b"),
+            _ => panic!("Expected second VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_if_initializer_trailing_semicolon_optional() {
+        let source = "int x := if true { 1 } else { 2 }";
+        let program = parse_source(source).unwrap();
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => {
+                assert!(matches!(initializer.kind, ExprKind::IfExpr { .. }));
+            }
+            _ => panic!("Expected VarDecl with IfExpr initializer"),
+        }
+    }
+
+    #[test]
+    fn test_non_block_initializer_still_requires_semicolon() {
+        // A scalar initializer without ; is still an error.
+        let source = "int x := 10";
+        assert!(parse_source(source).is_err());
     }
 
     #[test]
