@@ -29,6 +29,85 @@ impl AnalyzeError {
     }
 }
 
+impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
+    fn from(err: AnalyzeError) -> Self {
+        use crate::diagnostics::{Diagnostic, ErrorCode, Severity};
+        use serde_json::{Map, Value};
+
+        let (code, message, fields) = match &err.kind {
+            AnalyzeErrorKind::UndeclaredVariable(name) => {
+                let mut m = Map::new();
+                m.insert("name".to_string(), Value::String(name.clone()));
+                (
+                    ErrorCode::E0201,
+                    format!("undeclared variable '{}'", name),
+                    m,
+                )
+            }
+            AnalyzeErrorKind::UndeclaredFunction(name) => {
+                let mut m = Map::new();
+                m.insert("name".to_string(), Value::String(name.clone()));
+                (
+                    ErrorCode::E0202,
+                    format!("undeclared function '{}'", name),
+                    m,
+                )
+            }
+            AnalyzeErrorKind::TypeMismatch { expected, found } => {
+                let mut m = Map::new();
+                m.insert("expected".to_string(), Value::String(expected.to_string()));
+                m.insert("found".to_string(), Value::String(found.to_string()));
+                (
+                    ErrorCode::E0203,
+                    format!("type mismatch: expected '{}', found '{}'", expected, found),
+                    m,
+                )
+            }
+            AnalyzeErrorKind::IncorrectArgumentCount { expected, found } => {
+                let mut m = Map::new();
+                m.insert(
+                    "expected".to_string(),
+                    Value::Number((*expected).into()),
+                );
+                m.insert("found".to_string(), Value::Number((*found).into()));
+                (
+                    ErrorCode::E0204,
+                    format!("incorrect argument count: expected {}, found {}", expected, found),
+                    m,
+                )
+            }
+            AnalyzeErrorKind::VariableAlreadyDeclared(name) => {
+                let mut m = Map::new();
+                m.insert("name".to_string(), Value::String(name.clone()));
+                (
+                    ErrorCode::E0205,
+                    format!("variable '{}' already declared in this scope", name),
+                    m,
+                )
+            }
+            AnalyzeErrorKind::AssignmentToImmutable(name) => {
+                let mut m = Map::new();
+                m.insert("name".to_string(), Value::String(name.clone()));
+                (
+                    ErrorCode::E0206,
+                    format!("cannot assign to immutable variable '{}'", name),
+                    m,
+                )
+            }
+        };
+
+        Diagnostic {
+            code,
+            severity: Severity::Error,
+            message,
+            location: err.location.clone(),
+            labels: vec![],
+            hint: None,
+            fields,
+        }
+    }
+}
+
 impl crate::error_display::FormattedError for AnalyzeError {
     fn error_type(&self) -> &str {
         match &self.kind {
