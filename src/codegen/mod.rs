@@ -409,10 +409,20 @@ impl<'ctx> CodeGen<'ctx> {
         let entry_block = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry_block);
 
-        // Save current variable scope
-        let saved_variables = self.variables.clone();
-        self.variables.clear();
+        // Save current variable scope; ensure restoration even on error.
+        let saved_variables = std::mem::take(&mut self.variables);
+        let result = self.generate_function_body(function, parameters, body);
+        self.variables = saved_variables;
+        self.current_function = None;
+        result
+    }
 
+    fn generate_function_body(
+        &mut self,
+        function: FunctionValue<'ctx>,
+        parameters: &[(Identifier, crate::parser::ast::Type)],
+        body: &Expr,
+    ) -> Result<(), String> {
         // Allocate and store parameters
         for (i, (param_name, param_type)) in parameters.iter().enumerate() {
             let param_value = function.get_nth_param(i as u32).unwrap();
@@ -435,10 +445,6 @@ impl<'ctx> CodeGen<'ctx> {
             self.builder.build_return(Some(&body_value))
                 .map_err(|e| format!("Failed to build return: {}", e))?;
         }
-
-        // Restore variable scope
-        self.variables = saved_variables;
-        self.current_function = None;
 
         Ok(())
     }
