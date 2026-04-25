@@ -851,8 +851,10 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
-    /// Get the generated LLVM IR as a string
-    pub fn print_to_string(&self) -> String {
+    /// Get the generated LLVM IR as a string. Used by codegen tests to
+    /// assert IR shape; not part of the runtime compile path.
+    #[cfg(test)]
+    pub(crate) fn print_to_string(&self) -> String {
         self.module.print_to_string().to_string()
     }
 
@@ -860,11 +862,6 @@ impl<'ctx> CodeGen<'ctx> {
     pub fn write_to_file(&self, path: &str) -> Result<(), String> {
         self.module.print_to_file(path)
             .map_err(|e| format!("Failed to write module to file: {}", e.to_string()))
-    }
-
-    /// Get the module
-    pub fn module(&self) -> &Module<'ctx> {
-        &self.module
     }
 
     /// Initialize the target machine for native code generation
@@ -900,14 +897,6 @@ impl<'ctx> CodeGen<'ctx> {
             .map_err(|e| format!("Failed to write object file: {}", e.to_string()))
     }
 
-    /// Write assembly file
-    pub fn write_assembly_file(&self, path: &Path) -> Result<(), String> {
-        let target_machine = Self::get_target_machine()?;
-
-        target_machine
-            .write_to_file(&self.module, FileType::Assembly, path)
-            .map_err(|e| format!("Failed to write assembly file: {}", e.to_string()))
-    }
 }
 
 #[cfg(test)]
