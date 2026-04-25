@@ -1,3 +1,4 @@
+use std::fmt;
 use std::ops::Add;
 use crate::lexer::{SourceLocation};
 
@@ -65,6 +66,19 @@ pub enum TypeKind {
     Bool,
     Str,
     Array(Box<TypeKind>),
+}
+
+impl fmt::Display for TypeKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TypeKind::Int => write!(f, "int"),
+            TypeKind::Float => write!(f, "float"),
+            TypeKind::Char => write!(f, "char"),
+            TypeKind::Bool => write!(f, "bool"),
+            TypeKind::Str => write!(f, "str"),
+            TypeKind::Array(inner) => write!(f, "arr[{}]", inner),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

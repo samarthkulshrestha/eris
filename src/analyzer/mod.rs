@@ -122,8 +122,8 @@ impl Analyzer {
                         if var_type != init_type {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: format!("{:?}", var_type),
-                                    found: format!("{:?}", init_type),
+                                    expected: var_type.clone(),
+                                    found: init_type.clone(),
                                 },
                                 statement.location.clone(),
                             ));
@@ -173,8 +173,8 @@ impl Analyzer {
                 if target_type != value_type {
                     self.errors.push(AnalyzeError::new(
                         AnalyzeErrorKind::TypeMismatch {
-                            expected: format!("{:?}", target_type),
-                            found: format!("{:?}", value_type),
+                            expected: target_type.clone().unwrap_or(TypeKind::Int),
+                            found: value_type.clone().unwrap_or(TypeKind::Int),
                         },
                         statement.location.clone(),
                     ));
@@ -229,8 +229,8 @@ impl Analyzer {
                 if expected_return_type != expr_type {
                     self.errors.push(AnalyzeError::new(
                         AnalyzeErrorKind::TypeMismatch {
-                            expected: format!("{:?}", expected_return_type),
-                            found: format!("{:?}", expr_type),
+                            expected: expected_return_type.clone().unwrap_or(TypeKind::Int),
+                            found: expr_type.clone().unwrap_or(TypeKind::Int),
                         },
                         statement.location.clone(),
                     ));
@@ -260,8 +260,8 @@ impl Analyzer {
                         if elem_type != Some(first_type.clone()) {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: format!("{:?}", first_type),
-                                    found: format!("{:?}", elem_type),
+                                    expected: first_type.clone(),
+                                    found: elem_type.clone().unwrap_or(TypeKind::Int),
                                 },
                                 elem.location.clone(),
                             ));
@@ -301,8 +301,8 @@ impl Analyzer {
                         if left_type != right_type {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: format!("{:?}", left_type),
-                                    found: format!("{:?}", right_type),
+                                    expected: left_type.clone().unwrap_or(TypeKind::Int),
+                                    found: right_type.clone().unwrap_or(TypeKind::Int),
                                 },
                                 expression.location.clone(),
                             ));
@@ -313,8 +313,8 @@ impl Analyzer {
                         if left_type != right_type {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: format!("{:?}", left_type),
-                                    found: format!("{:?}", right_type),
+                                    expected: left_type.clone().unwrap_or(TypeKind::Int),
+                                    found: right_type.clone().unwrap_or(TypeKind::Int),
                                 },
                                 expression.location.clone(),
                             ));
@@ -325,8 +325,8 @@ impl Analyzer {
                         if left_type != Some(TypeKind::Bool) || right_type != Some(TypeKind::Bool) {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: "Bool".to_string(),
-                                    found: format!("{:?}", left_type),
+                                    expected: TypeKind::Bool,
+                                    found: left_type.clone().unwrap_or(TypeKind::Int),
                                 },
                                 expression.location.clone(),
                             ));
@@ -360,8 +360,8 @@ impl Analyzer {
                         if arg_type.as_ref() != Some(param_type) {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: format!("{:?}", param_type),
-                                    found: format!("{:?}", arg_type),
+                                    expected: param_type.clone(),
+                                    found: arg_type.clone().unwrap_or(TypeKind::Int),
                                 },
                                 arg.location.clone(),
                             ));
@@ -395,8 +395,8 @@ impl Analyzer {
                 if cond_type != Some(TypeKind::Bool) {
                     self.errors.push(AnalyzeError::new(
                         AnalyzeErrorKind::TypeMismatch {
-                            expected: "Bool".to_string(),
-                            found: format!("{:?}", cond_type),
+                            expected: TypeKind::Bool,
+                            found: cond_type.clone().unwrap_or(TypeKind::Int),
                         },
                         condition.location.clone(),
                     ));
@@ -411,8 +411,8 @@ impl Analyzer {
                     if then_type != else_type {
                         self.errors.push(AnalyzeError::new(
                             AnalyzeErrorKind::TypeMismatch {
-                                expected: format!("{:?}", then_type),
-                                found: format!("{:?}", else_type),
+                                expected: then_type.clone().unwrap_or(TypeKind::Int),
+                                found: else_type.clone().unwrap_or(TypeKind::Int),
                             },
                             expression.location.clone(),
                         ));
@@ -432,8 +432,8 @@ impl Analyzer {
                         if expr_type != Some(TypeKind::Bool) {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: "Bool".to_string(),
-                                    found: format!("{:?}", expr_type),
+                                    expected: TypeKind::Bool,
+                                    found: expr_type.clone().unwrap_or(TypeKind::Int),
                                 },
                                 expr.location.clone(),
                             ));
@@ -445,8 +445,8 @@ impl Analyzer {
                         if expr_type != Some(TypeKind::Int) {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
-                                    expected: "Int".to_string(),
-                                    found: format!("{:?}", expr_type),
+                                    expected: TypeKind::Int,
+                                    found: expr_type.clone().unwrap_or(TypeKind::Int),
                                 },
                                 expr.location.clone(),
                             ));
@@ -461,8 +461,8 @@ impl Analyzer {
                             _ => {
                                 self.errors.push(AnalyzeError::new(
                                     AnalyzeErrorKind::TypeMismatch {
-                                        expected: "Int or Float".to_string(),
-                                        found: format!("{:?}", expr_type),
+                                        expected: TypeKind::Float,
+                                        found: expr_type.clone().unwrap_or(TypeKind::Int),
                                     },
                                     expr.location.clone(),
                                 ));

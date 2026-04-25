@@ -1,4 +1,5 @@
 use crate::lexer::SourceLocation;
+use crate::parser::ast::TypeKind;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AnalyzeError {
@@ -11,8 +12,8 @@ pub enum AnalyzeErrorKind {
     UndeclaredVariable(String),
     UndeclaredFunction(String),
     TypeMismatch {
-        expected: String,
-        found: String,
+        expected: TypeKind,
+        found: TypeKind,
     },
     IncorrectArgumentCount {
         expected: usize,
@@ -49,7 +50,7 @@ impl crate::error_display::FormattedError for AnalyzeError {
                 format!("Cannot find function '{}' in this scope", name)
             }
             AnalyzeErrorKind::TypeMismatch { expected, found } => {
-                format!("Expected type {}, found {}", expected, found)
+                format!("Expected type '{}', found '{}'", expected, found)
             }
             AnalyzeErrorKind::IncorrectArgumentCount { expected, found } => {
                 format!("Expected {} arguments, found {}", expected, found)
