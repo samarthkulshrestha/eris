@@ -365,8 +365,16 @@ impl Parser {
 
                 self.advance(); // consume '('
 
-                // Try to parse as tuple pattern
-                let is_tuple_pattern = self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str]);
+                // Try to parse as tuple pattern. The next token is either a
+                // type keyword (flat pattern) or another '(' (nested pattern).
+                let is_tuple_pattern = self.current_is(&[
+                    Token::Int,
+                    Token::Bool,
+                    Token::Float,
+                    Token::Char,
+                    Token::Str,
+                    Token::LParen,
+                ]);
 
                 // Restore state
                 self.current_token = saved_token.clone();
@@ -407,65 +415,40 @@ impl Parser {
             .map(|(_, l)| l.clone())
             .unwrap_or_default();
 
-        self.expect(&[Token::LParen])?; // consume '('
+        let pattern = self.parse_tuple_pattern()?;
+        self.expect(&[Token::DeclareAssign])?;
 
-        // Parse (type id, type id, ...)
-        let mut bindings: Vec<(Type, Identifier)> = Vec::new();
+        let value = self.parse_expression()?;
+        self.expect(&[Token::Semicolon])?;
+
+        let mut statements = Vec::new();
+        flatten_tuple_pattern(&pattern, &value, &location, &mut statements)?;
+        Ok(statements)
+    }
+
+    /// Parse a tuple-destructuring pattern: `(<elem>, <elem>, ...)` where each
+    /// element is either a typed binding (`type id`) or another tuple pattern.
+    fn parse_tuple_pattern(&mut self) -> Result<TuplePattern, ParseError> {
+        self.expect(&[Token::LParen])?;
+        let mut elements = Vec::new();
         loop {
-            let typ = self.parse_type()?;
-            let ident = self.parse_ident()?;
-            bindings.push((typ, ident));
-
+            elements.push(self.parse_tuple_pattern_element()?);
             if !self.current_is(&[Token::Comma]) {
                 break;
             }
-            self.advance(); // consume comma
+            self.advance(); // consume ','
         }
-
         self.expect(&[Token::RParen])?;
-        self.expect(&[Token::DeclareAssign])?;
+        Ok(TuplePattern::Tuple(elements))
+    }
 
-        // Parse the tuple expression on the right
-        let tuple_expr = self.parse_expression()?;
-
-        self.expect(&[Token::Semicolon])?;
-
-        // Validate that the right side is a tuple expression
-        if let ExprKind::TupleExpr(ref elements) = tuple_expr.kind {
-            if elements.len() != bindings.len() {
-                return Err(ParseError {
-                    kind: ParseErrorKind::InvalidSyntax(format!(
-                        "Tuple destructuring mismatch: {} bindings but {} values",
-                        bindings.len(),
-                        elements.len()
-                    )),
-                    location: Some(location),
-                });
-            }
-
-            // Create individual variable declarations for each tuple element
-            let statements = bindings
-                .into_iter()
-                .zip(elements.iter())
-                .map(|((typ, ident), initializer)| Stmt {
-                    kind: StmtKind::VarDecl {
-                        ident,
-                        mutable: false, // Tuple destructuring is immutable for now
-                        typ: Some(typ),
-                        initializer: Box::new(initializer.clone()),
-                    },
-                    location: location.clone(),
-                })
-                .collect();
-
-            Ok(statements)
+    fn parse_tuple_pattern_element(&mut self) -> Result<TuplePattern, ParseError> {
+        if self.current_is(&[Token::LParen]) {
+            self.parse_tuple_pattern()
         } else {
-            Err(ParseError {
-                kind: ParseErrorKind::InvalidSyntax(
-                    "Expected tuple expression on right side of tuple destructuring".to_string(),
-                ),
-                location: Some(tuple_expr.location),
-            })
+            let typ = self.parse_type()?;
+            let ident = self.parse_ident()?;
+            Ok(TuplePattern::Binding { typ, ident })
         }
     }
 
@@ -1130,6 +1113,61 @@ fn token_matches(expected: &Token, actual: &Token) -> bool {
     }
 }
 
+/// Parser-internal representation of a tuple-destructuring pattern. Lowered
+/// into flat `VarDecl` statements after parsing.
+#[derive(Debug, Clone)]
+enum TuplePattern {
+    Binding { typ: Type, ident: Identifier },
+    Tuple(Vec<TuplePattern>),
+}
+
+/// Walk `pattern` and `value` in parallel, emitting one `VarDecl` per leaf
+/// binding into `out`. Errors when arities mismatch at any level or when the
+/// pattern expects a sub-tuple but the value is a scalar (or vice versa).
+fn flatten_tuple_pattern(
+    pattern: &TuplePattern,
+    value: &Expr,
+    location: &SourceLocation,
+    out: &mut Vec<Stmt>,
+) -> Result<(), ParseError> {
+    match pattern {
+        TuplePattern::Binding { typ, ident } => {
+            out.push(Stmt {
+                kind: StmtKind::VarDecl {
+                    ident: ident.clone(),
+                    mutable: false,
+                    typ: Some(typ.clone()),
+                    initializer: Box::new(value.clone()),
+                },
+                location: location.clone(),
+            });
+            Ok(())
+        }
+        TuplePattern::Tuple(elements) => match &value.kind {
+            ExprKind::TupleExpr(values) if values.len() == elements.len() => {
+                for (sub_pat, sub_val) in elements.iter().zip(values.iter()) {
+                    flatten_tuple_pattern(sub_pat, sub_val, location, out)?;
+                }
+                Ok(())
+            }
+            ExprKind::TupleExpr(values) => Err(ParseError {
+                kind: ParseErrorKind::InvalidSyntax(format!(
+                    "Tuple destructuring mismatch: pattern expects {} element(s), value has {}",
+                    elements.len(),
+                    values.len()
+                )),
+                location: Some(value.location.clone()),
+            }),
+            _ => Err(ParseError {
+                kind: ParseErrorKind::InvalidSyntax(
+                    "Expected tuple expression on right side of tuple destructuring".to_string(),
+                ),
+                location: Some(value.location.clone()),
+            }),
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1204,6 +1242,43 @@ mod tests {
             StmtKind::VarDecl { ident, .. } => assert_eq!(ident.name, "b"),
             _ => panic!("Expected VarDecl"),
         }
+    }
+
+    #[test]
+    fn test_nested_tuple_destructuring_in_paren_form() {
+        // (str a, (int b, str c)) := ("x", (1, "y"));
+        // Lowers to three flat var decls: a := "x", b := 1, c := "y".
+        let source = r#"(str a, (int b, str c)) := ("x", (1, "y"));"#;
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 3);
+        let names: Vec<&str> = program.statements.iter().map(|s| match &s.kind {
+            StmtKind::VarDecl { ident, .. } => ident.name.as_str(),
+            _ => panic!("Expected VarDecl, got {:?}", s.kind),
+        }).collect();
+        assert_eq!(names, vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn test_deeply_nested_tuple_destructuring() {
+        // ((int a, int b), (int c, int d)) := ((1, 2), (3, 4));
+        let source = "((int a, int b), (int c, int d)) := ((1, 2), (3, 4));";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 4);
+        let names: Vec<&str> = program.statements.iter().map(|s| match &s.kind {
+            StmtKind::VarDecl { ident, .. } => ident.name.as_str(),
+            _ => panic!("Expected VarDecl"),
+        }).collect();
+        assert_eq!(names, vec!["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn test_nested_tuple_destructuring_arity_mismatch_errors() {
+        // Outer tuple has 2 patterns, value has 3 elements — should error.
+        let source = "(int a, (int b, int c)) := (1, (2, 3), 4);";
+        let result = parse_source(source);
+        assert!(result.is_err(), "expected arity mismatch to error, got {:?}", result);
     }
 
     #[test]
