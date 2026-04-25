@@ -148,6 +148,8 @@ pub enum BinOp {
 #[derive(Ord, Eq, PartialEq, PartialOrd, Debug)]
 pub enum Precedence {
     Lowest = 0,
+    LogicalOr,  // ||
+    LogicalAnd, // &&
     Equality,   // == or !=
     Comparison, // <, <=, >, >=
     Sum,        // + or -
@@ -165,13 +167,15 @@ impl Add<i32> for Precedence {
 
         match new_value {
             0 => Precedence::Lowest,
-            1 => Precedence::Equality,
-            2 => Precedence::Comparison,
-            3 => Precedence::Sum,
-            4 => Precedence::Product,
-            5 => Precedence::Group,
-            6 => Precedence::Prefix,
-            _ => Precedence::Prefix, // or panic, or return Result
+            1 => Precedence::LogicalOr,
+            2 => Precedence::LogicalAnd,
+            3 => Precedence::Equality,
+            4 => Precedence::Comparison,
+            5 => Precedence::Sum,
+            6 => Precedence::Product,
+            7 => Precedence::Group,
+            8 => Precedence::Prefix,
+            _ => Precedence::Prefix,
         }
     }
 }

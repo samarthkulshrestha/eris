@@ -707,7 +707,8 @@ impl Parser {
             Some((Token::Multiply, _)) | Some((Token::Divide, _)) | Some((Token::Modulo, _)) => {
                 Some(Precedence::Product)
             }
-            Some((Token::And, _)) | Some((Token::Or, _)) => Some(Precedence::Lowest),
+            Some((Token::Or, _)) => Some(Precedence::LogicalOr),
+            Some((Token::And, _)) => Some(Precedence::LogicalAnd),
             _ => None,
         }
     }
@@ -1470,6 +1471,46 @@ mod tests {
                 // Should parse with correct precedence
                 assert!(matches!(initializer.kind, ExprKind::BinaryExpr { .. }));
             }
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_logical_and_binds_tighter_than_or() {
+        let source = "bool x := true || false && false;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => match &initializer.kind {
+                ExprKind::BinaryExpr { op, right, .. } => {
+                    assert!(matches!(op, BinOp::LOr), "outer op should be Or");
+                    match &right.kind {
+                        ExprKind::BinaryExpr { op: inner_op, .. } => {
+                            assert!(matches!(inner_op, BinOp::LAnd), "inner op should be And");
+                        }
+                        _ => panic!("Expected nested BinaryExpr on the right"),
+                    }
+                }
+                _ => panic!("Expected BinaryExpr"),
+            },
+            _ => panic!("Expected VarDecl"),
+        }
+    }
+
+    #[test]
+    fn test_logical_ops_bind_looser_than_comparisons() {
+        let source = "bool x := 1 < 2 && 3 > 0;";
+        let program = parse_source(source).unwrap();
+
+        assert_eq!(program.statements.len(), 1);
+        match &program.statements[0].kind {
+            StmtKind::VarDecl { initializer, .. } => match &initializer.kind {
+                ExprKind::BinaryExpr { op, .. } => {
+                    assert!(matches!(op, BinOp::LAnd), "outer op should be And, not a comparison");
+                }
+                _ => panic!("Expected BinaryExpr"),
+            },
             _ => panic!("Expected VarDecl"),
         }
     }
