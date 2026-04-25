@@ -889,3 +889,111 @@ impl<'ctx> CodeGen<'ctx> {
             .map_err(|e| format!("Failed to write assembly file: {}", e.to_string()))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analyzer::Analyzer;
+    use crate::lexer::Lexer;
+    use crate::parser::Parser;
+
+    fn compile_to_ir(source: &str) -> String {
+        let mut lexer = Lexer::new(source);
+        let tokens = lexer.tokenize().expect("lex");
+        let mut parser = Parser::new(tokens);
+        let program = parser.parse_program().expect("parse");
+        let mut analyzer = Analyzer::new();
+        analyzer.analyze_program(&program).expect("analyze");
+        let context = Context::create();
+        let mut codegen = CodeGen::new(&context, "test");
+        codegen.generate(&program).expect("codegen");
+        codegen.print_to_string()
+    }
+
+    #[test]
+    fn ir_emits_main_returning_i64() {
+        let ir = compile_to_ir("int main() { return 42; }");
+        assert!(ir.contains("define i64 @main()"));
+        assert!(ir.contains("ret i64 42"));
+    }
+
+    #[test]
+    fn ir_emits_variable_alloca_and_store() {
+        let ir = compile_to_ir("int main() { int x := 10; return x; }");
+        assert!(ir.contains("alloca i64"));
+        assert!(ir.contains("store i64 10"));
+    }
+
+    #[test]
+    fn ir_emits_function_with_parameter() {
+        let ir = compile_to_ir(
+            "int square(int n) { return n * n; }
+             int main() { return square(7); }",
+        );
+        assert!(ir.contains("define i64 @square(i64"));
+        assert!(ir.contains("call i64 @square"));
+        assert!(ir.contains("mul i64"));
+    }
+
+    #[test]
+    fn ir_emits_if_expression_with_phi() {
+        let ir = compile_to_ir("int main() { return if true { 1 } else { 2 }; }");
+        assert!(ir.contains("phi i64"));
+    }
+
+    #[test]
+    fn ir_emits_arithmetic_ops() {
+        // Use parameters to defeat LLVM's constant folding
+        let ir = compile_to_ir(
+            "int compute(int a, int b) { return a + b * a - b; }
+             int main() { return compute(1, 2); }",
+        );
+        assert!(ir.contains("add i64"));
+        assert!(ir.contains("mul i64"));
+        assert!(ir.contains("sub i64"));
+    }
+
+    #[test]
+    fn ir_emits_comparison_ops() {
+        let ir = compile_to_ir(
+            "int main() { int n := read_int(); bool b := n < 2; return if b { 0 } else { 1 }; }",
+        );
+        assert!(ir.contains("icmp slt"));
+    }
+
+    #[test]
+    fn ir_declares_builtin_print_helpers() {
+        let ir = compile_to_ir("int main() { print_int(42); return 0; }");
+        assert!(ir.contains("declare i32 @printf"));
+        assert!(ir.contains("define void @print_int"));
+        assert!(ir.contains("call void @print_int"));
+    }
+
+    #[test]
+    fn ir_emits_string_literal_constant() {
+        let ir = compile_to_ir(r#"int main() { print_str("hi"); return 0; }"#);
+        assert!(ir.contains("private unnamed_addr constant"));
+        assert!(ir.contains("call void @print_str"));
+    }
+
+    #[test]
+    fn ir_emits_recursive_call() {
+        let ir = compile_to_ir(
+            "int fact(int n) {
+                return if n <= 1 { 1 } else { n * fact(n - 1) };
+            }
+             int main() { return fact(5); }",
+        );
+        assert!(ir.contains("define i64 @fact"));
+        assert!(ir.contains("call i64 @fact"));
+    }
+
+    #[test]
+    fn ir_emits_logical_and_short_circuit_or_branch() {
+        let ir = compile_to_ir(
+            "int main() { bool b := true && false; return if b { 1 } else { 0 }; }",
+        );
+        // && and || lower through branch instructions
+        assert!(ir.contains("br i1"));
+    }
+}
