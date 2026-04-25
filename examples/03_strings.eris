@@ -1,0 +1,27 @@
+-- String printing demonstration
+
+int main() {
+    print_str("Welcome to Eris!");
+    println();
+    println();
+
+    print_str("String concatenation demo:");
+    println();
+    print_str("Part 1 ");
+    print_str("Part 2 ");
+    print_str("Part 3");
+    println();
+    println();
+
+    print_str("Mixed output demo:");
+    println();
+    print_str("The answer is: ");
+    print_int(42);
+    println();
+
+    print_str("Boolean value: ");
+    print_bool(true);
+    println();
+
+    return 0;
+}

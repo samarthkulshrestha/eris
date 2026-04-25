@@ -1,0 +1,23 @@
+-- I/O demonstration program
+-- Shows all built-in I/O functions
+
+int factorial(int n) {
+    return if n <= 1 {
+        1
+    } else {
+        n * factorial(n - 1)
+    };
+}
+
+int main() {
+    -- Print a greeting
+    print_str("enter a number: ");
+    int n := read_int();
+
+    -- Calculate and display factorial
+    int fact := factorial(n);
+    print_int(fact);
+    println();
+
+    return 0;
+}
