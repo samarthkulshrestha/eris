@@ -80,6 +80,58 @@ impl crate::error_display::FormattedError for ParseError {
     }
 }
 
+impl From<ParseError> for crate::diagnostics::Diagnostic {
+    fn from(err: ParseError) -> Self {
+        use crate::diagnostics::{Diagnostic, ErrorCode, Severity};
+        use serde_json::{Map, Value};
+
+        let location = err
+            .location
+            .clone()
+            .unwrap_or_else(crate::lexer::SourceLocation::default);
+
+        match err.kind {
+            ParseErrorKind::LexerError(inner) => Diagnostic::from(inner),
+            ParseErrorKind::UnexpectedToken { expected, found } => {
+                let mut fields = Map::new();
+                fields.insert("expected".to_string(), Value::String(expected.clone()));
+                let found_str = found
+                    .as_ref()
+                    .map(|t| format!("{:?}", t))
+                    .map(Value::String)
+                    .unwrap_or(Value::Null);
+                fields.insert("found".to_string(), found_str);
+                let message = match &found {
+                    Some(t) => format!("expected {}, found {:?}", expected, t),
+                    None => format!("expected {}, found end of file", expected),
+                };
+                Diagnostic {
+                    code: ErrorCode::E0101,
+                    severity: Severity::Error,
+                    message,
+                    location,
+                    labels: vec![],
+                    hint: None,
+                    fields,
+                }
+            }
+            ParseErrorKind::InvalidSyntax(msg) => {
+                let mut fields = Map::new();
+                fields.insert("detail".to_string(), Value::String(msg.clone()));
+                Diagnostic {
+                    code: ErrorCode::E0102,
+                    severity: Severity::Error,
+                    message: msg,
+                    location,
+                    labels: vec![],
+                    hint: None,
+                    fields,
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Parser {
     tokens: Vec<(Token, SourceLocation)>,

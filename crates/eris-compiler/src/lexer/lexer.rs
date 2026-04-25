@@ -159,14 +159,14 @@ impl fmt::Display for Token {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum LexerErrorKind {
     InvalidIdentifier(String),
     // UnterminatedString,
     InvalidToken(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LexerError {
     kind: LexerErrorKind,
     location: SourceLocation,
