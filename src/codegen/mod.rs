@@ -28,6 +28,17 @@ pub struct CodeGen<'ctx> {
 }
 
 impl<'ctx> CodeGen<'ctx> {
+    /// Placeholder value returned from expression positions that don't produce
+    /// a meaningful value (void function calls, blocks with no trailing
+    /// expression, if-expressions with absent branches). The analyzer must
+    /// prevent these from being consumed in value contexts; the placeholder
+    /// exists only to satisfy the BasicValueEnum return type. Until codegen
+    /// returns Option<BasicValueEnum> end-to-end (Phase 1), keep the dummy
+    /// in one place so it's easy to find and reason about.
+    fn void_placeholder(&self) -> BasicValueEnum<'ctx> {
+        self.context.i64_type().const_int(0, false).into()
+    }
+
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
@@ -731,7 +742,7 @@ impl<'ctx> CodeGen<'ctx> {
             Ok(value)
         } else {
             // Void function - return a dummy value (won't be used)
-            Ok(self.context.i64_type().const_int(0, false).into())
+            Ok(self.void_placeholder())
         }
     }
 
@@ -754,7 +765,7 @@ impl<'ctx> CodeGen<'ctx> {
             self.generate_expression(ret_expr)?
         } else {
             // Return a default value (0 for now)
-            self.context.i64_type().const_int(0, false).into()
+            self.void_placeholder()
         };
 
         // Restore variable scope
@@ -787,7 +798,7 @@ impl<'ctx> CodeGen<'ctx> {
         let then_value = if let Some(then_expr) = then_branch {
             self.generate_expression(then_expr)?
         } else {
-            self.context.i64_type().const_int(0, false).into()
+            self.void_placeholder()
         };
 
         let then_has_terminator = self.builder.get_insert_block().unwrap().get_terminator().is_some();
@@ -802,7 +813,7 @@ impl<'ctx> CodeGen<'ctx> {
         let else_value = if let Some(else_expr) = else_branch {
             self.generate_expression(else_expr)?
         } else {
-            self.context.i64_type().const_int(0, false).into()
+            self.void_placeholder()
         };
 
         let else_has_terminator = self.builder.get_insert_block().unwrap().get_terminator().is_some();
@@ -815,9 +826,13 @@ impl<'ctx> CodeGen<'ctx> {
         // Only generate merge block if at least one branch needs it
         if then_has_terminator && else_has_terminator {
             // Both branches have terminators (returns), so the merge block is unreachable
-            // We need to remove it and return a dummy value (won't be used)
             merge_block.remove_from_function().map_err(|_| "Failed to remove unreachable merge block")?;
-            Ok(self.context.i64_type().const_int(0, false).into())
+            Ok(self.void_placeholder())
+        } else if then_branch.is_none() && else_branch.is_none() {
+            // Neither branch produces a value (statement-context if). Skip the
+            // phi node; the result must not be consumed by valid programs.
+            self.builder.position_at_end(merge_block);
+            Ok(self.void_placeholder())
         } else {
             // Generate merge block with phi node
             self.builder.position_at_end(merge_block);
