@@ -270,8 +270,11 @@ impl<'ctx> CodeGen<'ctx> {
             .map(|v| v.as_pointer_value())
             .unwrap();
 
-        // Allocate space for the result
+        // Allocate space for the result and initialize to 0 so that a failed
+        // scanf (e.g. EOF or non-numeric input) returns a deterministic 0
+        // instead of reading uninitialized stack memory.
         let result_ptr = self.builder.build_alloca(self.context.i64_type(), "result").unwrap();
+        self.builder.build_store(result_ptr, self.context.i64_type().const_int(0, false)).unwrap();
 
         // Call scanf
         self.builder.build_call(
