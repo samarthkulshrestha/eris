@@ -27,16 +27,24 @@ fn json_format_emits_envelope_for_undeclared_variable() {
 
 #[test]
 fn json_format_success_emits_ok_status_with_empty_diagnostics() {
-    // Use examples/01.eris which is known-good
+    // Use examples/01.eris which is known-good. Direct outputs to a tempdir
+    // so the produced binary doesn't leak into the test crate's directory.
     let workspace_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .unwrap()
         .parent()
         .unwrap();
     let src = workspace_root.join("examples/01.eris");
+    let out_dir = tempfile::tempdir().unwrap();
 
     let out = Command::new(env!("CARGO_BIN_EXE_eris"))
-        .args([src.to_str().unwrap(), "--format", "json"])
+        .args([
+            "-o",
+            out_dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            src.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
 

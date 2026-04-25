@@ -2,3 +2,24 @@
 **/tags
 /docs/
 /CLAUDE.md
+
+# Compiled output of example programs (named after the source file stem)
+/01
+/02
+/03
+/04
+/02_io
+/03_strings
+/01.ll
+/02.ll
+/03.ll
+/04.ll
+/02_io.ll
+/03_strings.ll
+crates/*/01
+crates/*/02
+crates/*/03
+crates/*/04
+crates/*/02_io
+crates/*/03_strings
+crates/*/*.ll
