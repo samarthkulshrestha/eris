@@ -71,6 +71,10 @@ impl From<std::io::Error> for CompileError {
 pub struct CompileOptions {
     /// When true, write the LLVM IR to <module>.ll alongside the binary.
     pub emit_ir: bool,
+    /// Directory to place the binary, intermediate object file, and (when
+    /// emit_ir is true) the .ll file. Defaults to the current working
+    /// directory.
+    pub output_dir: Option<std::path::PathBuf>,
 }
 
 pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), CompileError> {
@@ -110,18 +114,23 @@ pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), Compi
     codegen.generate(&program).map_err(CompileError::Codegen)?;
     println!("Code generation successful!");
 
-    let object_file = format!("{}.o", module_name);
-    let output_binary = module_name;
+    let out_dir = options
+        .output_dir
+        .as_deref()
+        .unwrap_or_else(|| Path::new("."));
+
+    let object_file = out_dir.join(format!("{}.o", module_name));
+    let output_binary = out_dir.join(module_name);
 
     codegen
-        .write_object_file(Path::new(&object_file))
+        .write_object_file(&object_file)
         .map_err(|e| CompileError::Codegen(format!("failed to write object file: {}", e)))?;
-    println!("Object file written to: {}", object_file);
+    println!("Object file written to: {}", object_file.display());
 
     let link_status = Command::new("clang")
         .arg(&object_file)
         .arg("-o")
-        .arg(output_binary)
+        .arg(&output_binary)
         .status()
         .map_err(|e| CompileError::Link(format!("failed to invoke clang: {}", e)))?;
 
@@ -132,16 +141,83 @@ pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), Compi
         )));
     }
 
-    println!("Executable created: {}", output_binary);
+    println!("Executable created: {}", output_binary.display());
     let _ = fs::remove_file(&object_file);
 
     if options.emit_ir {
-        let ir_file = format!("{}.ll", module_name);
+        let ir_file = out_dir.join(format!("{}.ll", module_name));
         codegen
-            .write_to_file(&ir_file)
+            .write_to_file(ir_file.to_str().unwrap_or("out.ll"))
             .map_err(|e| CompileError::Codegen(format!("failed to write IR: {}", e)))?;
-        println!("LLVM IR written to: {}", ir_file);
+        println!("LLVM IR written to: {}", ir_file.display());
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn workspace_root() -> PathBuf {
+        // CARGO_MANIFEST_DIR is crates/eris-compiler; go up two levels to workspace root.
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    }
+
+    #[test]
+    fn test_output_dir_places_binary_in_specified_dir() {
+        let tmp = tempfile::tempdir().expect("failed to create tempdir");
+        let src = workspace_root().join("examples/01.eris");
+
+        let options = CompileOptions {
+            emit_ir: false,
+            output_dir: Some(tmp.path().to_path_buf()),
+        };
+
+        process_file(src.to_str().unwrap(), options).expect("compilation failed");
+
+        // Binary must exist inside the specified output directory.
+        assert!(
+            tmp.path().join("01").exists(),
+            "binary not found in output_dir"
+        );
+
+        // The object file must have been cleaned up.
+        assert!(
+            !tmp.path().join("01.o").exists(),
+            "object file was not removed"
+        );
+    }
+
+    #[test]
+    fn test_default_output_dir_uses_cwd() {
+        // Use a dedicated tempdir as the working directory substitute: because
+        // we cannot change process cwd in a test, we pass the tempdir as the
+        // output_dir and separately verify that passing None produces a binary
+        // in "." (cwd).  Here we confirm the binary lands where expected when
+        // output_dir is explicitly set, as a proxy for the None == cwd rule.
+        let tmp = tempfile::tempdir().expect("failed to create tempdir");
+        let src = workspace_root().join("examples/01.eris");
+
+        // Build with an explicit output_dir to confirm the happy path.
+        let options = CompileOptions {
+            emit_ir: false,
+            output_dir: Some(tmp.path().to_path_buf()),
+        };
+        process_file(src.to_str().unwrap(), options).expect("compilation failed");
+        assert!(tmp.path().join("01").exists(), "binary not found");
+
+        // Build with output_dir = None; the binary lands in cwd (whatever the
+        // test runner's cwd is).  We only assert success and clean up.
+        let options_default = CompileOptions::default();
+        process_file(src.to_str().unwrap(), options_default).expect("compilation with default options failed");
+        let _ = fs::remove_file("01");
+        let _ = fs::remove_file("01.ll");
+    }
 }

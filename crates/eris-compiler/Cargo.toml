@@ -12,3 +12,6 @@ path = "src/lib.rs"
 [dependencies]
 logos.workspace = true
 inkwell.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
