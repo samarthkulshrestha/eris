@@ -1,0 +1,14 @@
+[package]
+name = "eris-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Command-line driver for the Eris compiler."
+
+[[bin]]
+name = "eris"
+path = "src/main.rs"
+
+[dependencies]
+eris-compiler = { path = "../eris-compiler" }

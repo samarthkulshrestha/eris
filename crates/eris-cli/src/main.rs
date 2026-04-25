@@ -1,7 +1,7 @@
 use std::env;
 use std::process;
 
-use eris::CompileOptions;
+use eris_compiler::CompileOptions;
 
 fn print_usage(prog: &str) {
     eprintln!("Usage: {} [--emit-ir] <source_file>", prog);
@@ -41,7 +41,7 @@ fn main() {
         process::exit(1);
     };
 
-    if let Err(e) = eris::process_file(file, options) {
+    if let Err(e) = eris_compiler::process_file(file, options) {
         eprint!("{}", e);
         process::exit(1);
     }
