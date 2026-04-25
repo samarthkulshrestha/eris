@@ -24,9 +24,10 @@ pub struct ParseError {
 
 impl From<LexerError> for ParseError {
     fn from(err: LexerError) -> Self {
+        let location = Some(err.location().clone());
         ParseError {
             kind: ParseErrorKind::LexerError(err),
-            location: None,
+            location,
         }
     }
 }
@@ -85,6 +86,7 @@ impl crate::error_display::FormattedError for ParseError {
 pub struct Parser {
     tokens: Peekable<IntoIter<(Token, SourceLocation)>>,
     current_token: Option<(Token, SourceLocation)>,
+    last_location: SourceLocation,
 }
 
 impl Parser {
@@ -92,6 +94,7 @@ impl Parser {
         let mut parser = Parser {
             tokens: tokens.into_iter().peekable(),
             current_token: None,
+            last_location: SourceLocation { line: 1, column: 1 },
         };
 
         // Advance to the first token
@@ -101,6 +104,9 @@ impl Parser {
     }
 
     fn advance(&mut self) -> Option<(Token, SourceLocation)> {
+        if let Some((_, loc)) = &self.current_token {
+            self.last_location = loc.clone();
+        }
         self.current_token = self.tokens.next();
         self.current_token.clone()
     }
@@ -141,7 +147,7 @@ impl Parser {
                     .join(", "),
                 found: None,
             },
-            location: None,
+            location: Some(self.last_location.clone()),
         })
     }
 
@@ -326,7 +332,7 @@ impl Parser {
             None => {
                 return Err(ParseError {
                     kind: ParseErrorKind::InvalidSyntax("Unexpected end of file".to_string()),
-                    location: None,
+                    location: Some(self.last_location.clone()),
                 })
             }
         };

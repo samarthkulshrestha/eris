@@ -171,6 +171,12 @@ pub struct LexerError {
     location: SourceLocation,
 }
 
+impl LexerError {
+    pub fn location(&self) -> &SourceLocation {
+        &self.location
+    }
+}
+
 impl fmt::Display for LexerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let message = match &self.kind {
