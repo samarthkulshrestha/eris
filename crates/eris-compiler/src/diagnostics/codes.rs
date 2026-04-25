@@ -23,20 +23,29 @@ pub enum ErrorCode {
     E0206,
 }
 
+/// Single source of truth for error code string values.
+/// To add a new code: add the variant above AND one entry here — nothing else.
+const ALL_CODES: &[(ErrorCode, &str)] = &[
+    (ErrorCode::E0001, "E0001"),
+    (ErrorCode::E0002, "E0002"),
+    (ErrorCode::E0101, "E0101"),
+    (ErrorCode::E0102, "E0102"),
+    (ErrorCode::E0201, "E0201"),
+    (ErrorCode::E0202, "E0202"),
+    (ErrorCode::E0203, "E0203"),
+    (ErrorCode::E0204, "E0204"),
+    (ErrorCode::E0205, "E0205"),
+    (ErrorCode::E0206, "E0206"),
+];
+
 impl ErrorCode {
     pub fn as_str(self) -> &'static str {
-        match self {
-            ErrorCode::E0001 => "E0001",
-            ErrorCode::E0002 => "E0002",
-            ErrorCode::E0101 => "E0101",
-            ErrorCode::E0102 => "E0102",
-            ErrorCode::E0201 => "E0201",
-            ErrorCode::E0202 => "E0202",
-            ErrorCode::E0203 => "E0203",
-            ErrorCode::E0204 => "E0204",
-            ErrorCode::E0205 => "E0205",
-            ErrorCode::E0206 => "E0206",
+        for (code, s) in ALL_CODES {
+            if *code == self {
+                return s;
+            }
         }
+        unreachable!("ErrorCode variant missing from ALL_CODES")
     }
 }
 
@@ -57,18 +66,12 @@ impl JsonSchema for ErrorCode {
             instance_type: Some(InstanceType::String.into()),
             ..Default::default()
         };
-        schema.enum_values = Some(vec![
-            serde_json::json!("E0001"),
-            serde_json::json!("E0002"),
-            serde_json::json!("E0101"),
-            serde_json::json!("E0102"),
-            serde_json::json!("E0201"),
-            serde_json::json!("E0202"),
-            serde_json::json!("E0203"),
-            serde_json::json!("E0204"),
-            serde_json::json!("E0205"),
-            serde_json::json!("E0206"),
-        ]);
+        schema.enum_values = Some(
+            ALL_CODES
+                .iter()
+                .map(|(_, s)| serde_json::json!(s))
+                .collect(),
+        );
         schema.string = Some(Box::new(StringValidation {
             pattern: Some(r"^E\d{4}$".to_string()),
             ..Default::default()
@@ -84,20 +87,8 @@ mod tests {
 
     #[test]
     fn all_error_codes_have_unique_string_repr() {
-        let all_codes = [
-            ErrorCode::E0001,
-            ErrorCode::E0002,
-            ErrorCode::E0101,
-            ErrorCode::E0102,
-            ErrorCode::E0201,
-            ErrorCode::E0202,
-            ErrorCode::E0203,
-            ErrorCode::E0204,
-            ErrorCode::E0205,
-            ErrorCode::E0206,
-        ];
-        let strs: HashSet<&'static str> = all_codes.iter().map(|c| c.as_str()).collect();
-        assert_eq!(strs.len(), all_codes.len(), "duplicate code string detected");
+        let strs: HashSet<&'static str> = ALL_CODES.iter().map(|(_, s)| *s).collect();
+        assert_eq!(strs.len(), ALL_CODES.len(), "duplicate code string detected");
     }
 
     #[test]
@@ -114,5 +105,17 @@ mod tests {
             serde_json::to_string(&ErrorCode::E0206).unwrap(),
             "\"E0206\""
         );
+    }
+
+    #[test]
+    fn all_codes_roundtrip_through_as_str() {
+        for (code, expected_str) in ALL_CODES {
+            assert_eq!(
+                code.as_str(),
+                *expected_str,
+                "as_str() mismatch for {:?}",
+                code
+            );
+        }
     }
 }
