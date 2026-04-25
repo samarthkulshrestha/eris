@@ -68,6 +68,13 @@ impl From<std::io::Error> for CompileError {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub enum OutputFormat {
+    #[default]
+    Text,
+    Json,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct CompileOptions {
     /// When true, write the LLVM IR to <module>.ll alongside the binary.
@@ -76,6 +83,23 @@ pub struct CompileOptions {
     /// emit_ir is true) the .ll file. Defaults to the current working
     /// directory.
     pub output_dir: Option<std::path::PathBuf>,
+    /// Output format for diagnostics (text or json).
+    pub format: OutputFormat,
+}
+
+impl From<&CompileError> for Vec<crate::diagnostics::Diagnostic> {
+    fn from(err: &CompileError) -> Self {
+        use crate::diagnostics::Diagnostic;
+        match err {
+            CompileError::Io(_) => vec![],
+            CompileError::Lex { error, .. } => vec![Diagnostic::from(error.clone())],
+            CompileError::Parse { error, .. } => vec![Diagnostic::from(error.clone())],
+            CompileError::Analyze { errors, .. } => {
+                errors.iter().map(|e| Diagnostic::from(e.clone())).collect()
+            }
+            CompileError::Codegen(_) | CompileError::Link(_) => vec![],
+        }
+    }
 }
 
 pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), CompileError> {
@@ -103,7 +127,9 @@ pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), Compi
             filename: filename.to_string(),
             errors,
         })?;
-    println!("Analysis successful!");
+    if options.format == OutputFormat::Text {
+        println!("Analysis successful!");
+    }
 
     let context = Context::create();
     let module_name = Path::new(filename)
@@ -113,7 +139,9 @@ pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), Compi
 
     let mut codegen = crate::codegen::CodeGen::new(&context, module_name);
     codegen.generate(&program).map_err(CompileError::Codegen)?;
-    println!("Code generation successful!");
+    if options.format == OutputFormat::Text {
+        println!("Code generation successful!");
+    }
 
     let out_dir = options
         .output_dir
@@ -126,7 +154,9 @@ pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), Compi
     codegen
         .write_object_file(&object_file)
         .map_err(|e| CompileError::Codegen(format!("failed to write object file: {}", e)))?;
-    println!("Object file written to: {}", object_file.display());
+    if options.format == OutputFormat::Text {
+        println!("Object file written to: {}", object_file.display());
+    }
 
     let link_status = Command::new("clang")
         .arg(&object_file)
@@ -142,7 +172,9 @@ pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), Compi
         )));
     }
 
-    println!("Executable created: {}", output_binary.display());
+    if options.format == OutputFormat::Text {
+        println!("Executable created: {}", output_binary.display());
+    }
     let _ = fs::remove_file(&object_file);
 
     if options.emit_ir {
@@ -150,7 +182,9 @@ pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), Compi
         codegen
             .write_to_file(ir_file.to_str().unwrap_or("out.ll"))
             .map_err(|e| CompileError::Codegen(format!("failed to write IR: {}", e)))?;
-        println!("LLVM IR written to: {}", ir_file.display());
+        if options.format == OutputFormat::Text {
+            println!("LLVM IR written to: {}", ir_file.display());
+        }
     }
 
     Ok(())
@@ -179,6 +213,7 @@ mod tests {
         let options = CompileOptions {
             emit_ir: false,
             output_dir: Some(tmp.path().to_path_buf()),
+            format: OutputFormat::Text,
         };
 
         process_file(src.to_str().unwrap(), options).expect("compilation failed");
@@ -210,6 +245,7 @@ mod tests {
         let options = CompileOptions {
             emit_ir: false,
             output_dir: Some(tmp.path().to_path_buf()),
+            format: OutputFormat::Text,
         };
         process_file(src.to_str().unwrap(), options).expect("compilation failed");
         assert!(tmp.path().join("01").exists(), "binary not found");

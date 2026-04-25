@@ -4,7 +4,7 @@ use crate::parser::ast::{
     BinOp, Expr, ExprKind, Identifier, Precedence, Program, Stmt, StmtKind, Type, TypeKind,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ParseErrorKind {
     UnexpectedToken {
         expected: String,
@@ -14,7 +14,7 @@ pub enum ParseErrorKind {
     LexerError(LexerError),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
     pub location: Option<SourceLocation>,

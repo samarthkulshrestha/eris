@@ -1,6 +1,6 @@
 use eris_compiler::diagnostics::{Diagnostic, ErrorCode};
 use eris_compiler::lexer::Lexer;
-use eris_compiler::parser::Parser;
+use eris_compiler::parser::{ParseError, ParseErrorKind, Parser};
 
 #[test]
 fn parser_unexpected_token_emits_e0101_with_fields() {
@@ -24,10 +24,6 @@ fn parser_unexpected_token_emits_e0101_with_fields() {
 
 #[test]
 fn parser_lexer_error_preserves_inner_code() {
-    use eris_compiler::lexer::LexerError;
-    use eris_compiler::parser::ParseErrorKind;
-    use eris_compiler::parser::ParseError;
-
     // Build a ParseError wrapping a LexerError for InvalidToken
     let lex_err = {
         let mut lexer = Lexer::new("@");
