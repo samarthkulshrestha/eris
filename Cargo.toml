@@ -11,6 +11,7 @@ license = "MIT"
 [workspace.dependencies]
 logos = "0.15.0"
 inkwell = { version = "0.5", features = ["llvm17-0"] }
+eris-compiler = { path = "crates/eris-compiler", version = "0.8.0" }
 
 [profile.dev]
 debug = true

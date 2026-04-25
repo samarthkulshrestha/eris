@@ -11,4 +11,4 @@ name = "eris"
 path = "src/main.rs"
 
 [dependencies]
-eris-compiler = { path = "../eris-compiler" }
+eris-compiler.workspace = true
