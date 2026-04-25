@@ -5,7 +5,8 @@
   "required": [
     "compiler_version",
     "diagnostics",
-    "schema_version"
+    "schema_version",
+    "status"
   ],
   "properties": {
     "compiler_version": {
@@ -17,8 +18,17 @@
         "$ref": "#/definitions/Diagnostic"
       }
     },
+    "error_message": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "schema_version": {
       "type": "string"
+    },
+    "status": {
+      "$ref": "#/definitions/EnvelopeStatus"
     }
   },
   "definitions": {
@@ -57,6 +67,14 @@
           "$ref": "#/definitions/Severity"
         }
       }
+    },
+    "EnvelopeStatus": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "compile_error",
+        "internal_error"
+      ]
     },
     "ErrorCode": {
       "type": "string",

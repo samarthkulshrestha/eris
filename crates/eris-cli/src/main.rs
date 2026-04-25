@@ -86,28 +86,40 @@ fn main() {
     };
 
     match eris_compiler::process_file(file, options.clone()) {
-        Ok(()) => {}
+        Ok(()) => {
+            if options.format == OutputFormat::Json {
+                let envelope = DiagnosticEnvelope::ok();
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&envelope)
+                        .unwrap_or_else(|_| "{}".to_string())
+                );
+            }
+        }
         Err(e) => {
             if options.format == OutputFormat::Json {
-                let diagnostics: Vec<eris_compiler::diagnostics::Diagnostic> =
-                    Vec::from(&e);
-                if diagnostics.is_empty() {
-                    // IO / codegen / link errors: emit empty envelope + stderr message
-                    eprintln!("error: {}", e);
-                    let envelope = DiagnosticEnvelope::new(vec![]);
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&envelope)
-                            .unwrap_or_else(|_| "{}".to_string())
-                    );
-                } else {
-                    let envelope = DiagnosticEnvelope::new(diagnostics);
-                    println!(
-                        "{}",
-                        serde_json::to_string_pretty(&envelope)
-                            .unwrap_or_else(|_| "{}".to_string())
-                    );
-                }
+                use eris_compiler::CompileError;
+                let envelope = match &e {
+                    CompileError::Io(io_err) => {
+                        DiagnosticEnvelope::internal_error(format!("io: {}", io_err))
+                    }
+                    CompileError::Codegen(msg) => {
+                        DiagnosticEnvelope::internal_error(format!("codegen: {}", msg))
+                    }
+                    CompileError::Link(msg) => {
+                        DiagnosticEnvelope::internal_error(format!("link: {}", msg))
+                    }
+                    _ => {
+                        let diagnostics: Vec<eris_compiler::diagnostics::Diagnostic> =
+                            Vec::from(&e);
+                        DiagnosticEnvelope::compile_error(diagnostics)
+                    }
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&envelope)
+                        .unwrap_or_else(|_| "{}".to_string())
+                );
                 process::exit(1);
             } else {
                 eprint!("{}", e);
