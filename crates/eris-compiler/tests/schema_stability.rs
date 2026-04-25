@@ -9,6 +9,6 @@ fn diagnostic_schema_matches_committed_file() {
     assert_eq!(
         committed.trim(),
         live.trim(),
-        "schema drift detected — regenerate schemas/diagnostic-envelope.json"
+        "schema drift detected — regenerate with: cargo run -p eris-compiler --bin dump-schema > schemas/diagnostic-envelope.json"
     );
 }
