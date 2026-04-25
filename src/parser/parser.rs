@@ -1,6 +1,4 @@
 use crate::lexer::{LexerError, SourceLocation, Token};
-use std::iter::Peekable;
-use std::vec::IntoIter;
 
 use crate::parser::ast::{
     BinOp, Expr, ExprKind, Identifier, Precedence, Program, Stmt, StmtKind, Type, TypeKind,
@@ -84,30 +82,29 @@ impl crate::error_display::FormattedError for ParseError {
 
 #[derive(Debug)]
 pub struct Parser {
-    tokens: Peekable<IntoIter<(Token, SourceLocation)>>,
+    tokens: Vec<(Token, SourceLocation)>,
+    pos: usize,
     current_token: Option<(Token, SourceLocation)>,
     last_location: SourceLocation,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<(Token, SourceLocation)>) -> Self {
-        let mut parser = Parser {
-            tokens: tokens.into_iter().peekable(),
-            current_token: None,
+        let current_token = tokens.first().cloned();
+        Parser {
+            tokens,
+            pos: 0,
+            current_token,
             last_location: SourceLocation { line: 1, column: 1 },
-        };
-
-        // Advance to the first token
-        parser.advance();
-
-        parser
+        }
     }
 
     fn advance(&mut self) -> Option<(Token, SourceLocation)> {
         if let Some((_, loc)) = &self.current_token {
             self.last_location = loc.clone();
         }
-        self.current_token = self.tokens.next();
+        self.pos += 1;
+        self.current_token = self.tokens.get(self.pos).cloned();
         self.current_token.clone()
     }
 
@@ -195,8 +192,8 @@ impl Parser {
                 // We need to look ahead to determine which one it is
 
                 // Save current state to restore if needed
-                let current_token_clone = self.current_token.clone();
-                let tokens_clone = self.tokens.clone();
+                let saved_token = self.current_token.clone();
+                let saved_pos = self.pos;
 
                 // Parse the type
                 let _type_annotation = self.parse_type()?;
@@ -230,23 +227,23 @@ impl Parser {
                     if self.current_is(&[Token::LParen]) {
                         // It's a function declaration
                         // Reset the parser state
-                        self.current_token = current_token_clone;
-                        self.tokens = tokens_clone;
+                        self.current_token = saved_token.clone();
+                        self.pos = saved_pos;
                         // Parse as a function
                         self.parse_function_declaration()?.kind
                     } else {
                         // It's a variable declaration or part of a structured binding
                         // Reset the parser state
-                        self.current_token = current_token_clone;
-                        self.tokens = tokens_clone;
+                        self.current_token = saved_token.clone();
+                        self.pos = saved_pos;
                         // Parse as a variable - this returns Vec<Stmt>, so return early
                         return self.parse_variable_declarations();
                     }
                 } else if has_tuple_pattern {
                     // It's a tuple pattern: type (id1, id2) := ...
                     // Reset the parser state
-                    self.current_token = current_token_clone;
-                    self.tokens = tokens_clone;
+                    self.current_token = saved_token.clone();
+                    self.pos = saved_pos;
                     // Parse as a variable declaration with tuple pattern
                     return self.parse_variable_declarations();
                 } else {
@@ -299,8 +296,8 @@ impl Parser {
             Some((Token::LParen, _)) => {
                 // Check if this is a tuple destructuring pattern: (type id, type id) := ...
                 // Save state in case it's just a parenthesized expression
-                let current_token_clone = self.current_token.clone();
-                let tokens_clone = self.tokens.clone();
+                let saved_token = self.current_token.clone();
+                let saved_pos = self.pos;
 
                 self.advance(); // consume '('
 
@@ -308,8 +305,8 @@ impl Parser {
                 let is_tuple_pattern = self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str]);
 
                 // Restore state
-                self.current_token = current_token_clone;
-                self.tokens = tokens_clone;
+                self.current_token = saved_token.clone();
+                self.pos = saved_pos;
 
                 if is_tuple_pattern {
                     // Parse as tuple destructuring
@@ -1040,13 +1037,11 @@ impl Parser {
 
     fn look_ahead_for_semicolon(&self) -> bool {
         let mut balance = 0;
-        for (token, _) in self.tokens.clone() {
+        for (token, _) in &self.tokens[self.pos.saturating_add(1).min(self.tokens.len())..] {
             match token {
                 Token::LBrace | Token::LParen => balance += 1,
                 Token::RBrace | Token::RParen => {
                     if balance == 0 {
-                        // This means we have an unmatched closing brace/paren, which is a syntax error
-                        // that will be caught later. For now, we can assume it's not a semicolon.
                         return false;
                     }
                     balance -= 1;
