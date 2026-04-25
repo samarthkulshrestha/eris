@@ -1,4 +1,5 @@
 use logos::Logos;
+use serde::Serialize;
 use std::fmt;
 use std::error::Error;
 
@@ -223,7 +224,7 @@ impl crate::error_display::FormattedError for LexerError {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub struct SourceLocation {
     pub line: usize,
     pub column: usize,
