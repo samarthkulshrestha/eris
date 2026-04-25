@@ -33,23 +33,7 @@ pub enum StmtKind {
         return_type: Option<Type>,
         body: Expr
     },
-    FuncCall {
-        ident: String,
-        args: Vec<FuncArgs>
-    },
     ReturnStmt(Option<Expr>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct FuncArgs {
-    pub label: Option<String>,
-    pub value: Expr,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct FuncParam {
-    ident: String,
-    typ: Type,
 }
 
 #[derive(Debug, Clone, PartialEq)]
