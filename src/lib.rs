@@ -67,7 +67,13 @@ impl From<std::io::Error> for CompileError {
     }
 }
 
-pub fn process_file(filename: &str) -> Result<(), CompileError> {
+#[derive(Debug, Clone, Default)]
+pub struct CompileOptions {
+    /// When true, write the LLVM IR to <module>.ll alongside the binary.
+    pub emit_ir: bool,
+}
+
+pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), CompileError> {
     let source = fs::read_to_string(filename)?;
 
     let mut lexer = crate::lexer::Lexer::new(&source);
@@ -129,11 +135,13 @@ pub fn process_file(filename: &str) -> Result<(), CompileError> {
     println!("Executable created: {}", output_binary);
     let _ = fs::remove_file(&object_file);
 
-    let ir_file = format!("{}.ll", module_name);
-    codegen
-        .write_to_file(&ir_file)
-        .map_err(|e| CompileError::Codegen(format!("failed to write IR: {}", e)))?;
-    println!("LLVM IR written to: {} (for debugging)", ir_file);
+    if options.emit_ir {
+        let ir_file = format!("{}.ll", module_name);
+        codegen
+            .write_to_file(&ir_file)
+            .map_err(|e| CompileError::Codegen(format!("failed to write IR: {}", e)))?;
+        println!("LLVM IR written to: {}", ir_file);
+    }
 
     Ok(())
 }

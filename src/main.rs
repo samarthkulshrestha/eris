@@ -1,15 +1,47 @@
 use std::env;
 use std::process;
 
+use eris::CompileOptions;
+
+fn print_usage(prog: &str) {
+    eprintln!("Usage: {} [--emit-ir] <source_file>", prog);
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let prog = args.first().map(String::as_str).unwrap_or("eris");
 
-    if args.len() < 2 {
-        eprintln!("Usage: {} <source_file>", args[0]);
-        process::exit(1);
+    let mut options = CompileOptions::default();
+    let mut source_file: Option<&str> = None;
+
+    for arg in &args[1..] {
+        match arg.as_str() {
+            "--emit-ir" => options.emit_ir = true,
+            "-h" | "--help" => {
+                print_usage(prog);
+                return;
+            }
+            s if s.starts_with("--") => {
+                eprintln!("error: unknown flag '{}'", s);
+                print_usage(prog);
+                process::exit(2);
+            }
+            s => {
+                if source_file.is_some() {
+                    eprintln!("error: multiple source files not supported");
+                    process::exit(2);
+                }
+                source_file = Some(s);
+            }
+        }
     }
 
-    if let Err(e) = eris::process_file(&args[1]) {
+    let Some(file) = source_file else {
+        print_usage(prog);
+        process::exit(1);
+    };
+
+    if let Err(e) = eris::process_file(file, options) {
         eprint!("{}", e);
         process::exit(1);
     }
