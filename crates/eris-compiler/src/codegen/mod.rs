@@ -1,3 +1,4 @@
+use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -25,6 +26,9 @@ pub struct CodeGen<'ctx> {
 
     // Current function being compiled
     current_function: Option<FunctionValue<'ctx>>,
+
+    // Stack of (continue_target, break_target) for loop constructs
+    loop_stack: Vec<(BasicBlock<'ctx>, BasicBlock<'ctx>)>,
 }
 
 impl<'ctx> CodeGen<'ctx> {
@@ -50,6 +54,7 @@ impl<'ctx> CodeGen<'ctx> {
             variables: HashMap::new(),
             functions: HashMap::new(),
             current_function: None,
+            loop_stack: Vec::new(),
         };
 
         // Declare built-in I/O functions
@@ -372,6 +377,51 @@ impl<'ctx> CodeGen<'ctx> {
             }
             StmtKind::ExprStmt(expr) => {
                 self.generate_expression(expr)?;
+            }
+            StmtKind::WhileLoop { condition, body } => {
+                let parent_fn = self.current_function
+                    .ok_or("while-loop must be inside a function")?;
+
+                let cond_block = self.context.append_basic_block(parent_fn, "while.cond");
+                let body_block = self.context.append_basic_block(parent_fn, "while.body");
+                let after_block = self.context.append_basic_block(parent_fn, "while.after");
+
+                self.builder.build_unconditional_branch(cond_block)
+                    .map_err(|e| format!("Failed to branch to while.cond: {}", e))?;
+
+                self.builder.position_at_end(cond_block);
+                let cond_value = self.generate_expression(condition)?;
+                self.builder.build_conditional_branch(
+                    cond_value.into_int_value(),
+                    body_block,
+                    after_block,
+                ).map_err(|e| format!("Failed to build while branch: {}", e))?;
+
+                self.builder.position_at_end(body_block);
+                self.loop_stack.push((cond_block, after_block));
+                self.generate_expression(body)?;
+                self.loop_stack.pop();
+
+                if self.builder.get_insert_block().unwrap().get_terminator().is_none() {
+                    self.builder.build_unconditional_branch(cond_block)
+                        .map_err(|e| format!("Failed to back-branch: {}", e))?;
+                }
+
+                self.builder.position_at_end(after_block);
+            }
+            StmtKind::Break => {
+                let (_, after) = self.loop_stack.last()
+                    .copied()
+                    .ok_or("break outside loop reached codegen — analyzer should have caught this")?;
+                self.builder.build_unconditional_branch(after)
+                    .map_err(|e| format!("Failed to build break branch: {}", e))?;
+            }
+            StmtKind::Continue => {
+                let (cond, _) = self.loop_stack.last()
+                    .copied()
+                    .ok_or("continue outside loop reached codegen — analyzer should have caught this")?;
+                self.builder.build_unconditional_branch(cond)
+                    .map_err(|e| format!("Failed to build continue branch: {}", e))?;
             }
         }
         Ok(())

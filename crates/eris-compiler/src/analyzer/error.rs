@@ -21,6 +21,8 @@ pub enum AnalyzeErrorKind {
     },
     VariableAlreadyDeclared(String),
     AssignmentToImmutable(String),
+    BreakOutsideLoop,
+    ContinueOutsideLoop,
 }
 
 impl AnalyzeError {
@@ -95,6 +97,12 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
                     m,
                 )
             }
+            AnalyzeErrorKind::BreakOutsideLoop => {
+                (ErrorCode::E0207, "break outside loop".to_string(), Map::new())
+            }
+            AnalyzeErrorKind::ContinueOutsideLoop => {
+                (ErrorCode::E0208, "continue outside loop".to_string(), Map::new())
+            }
         };
 
         Diagnostic {
@@ -118,6 +126,8 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::IncorrectArgumentCount { .. } => "incorrect argument count",
             AnalyzeErrorKind::VariableAlreadyDeclared(_) => "variable already declared",
             AnalyzeErrorKind::AssignmentToImmutable(_) => "assignment to immutable variable",
+            AnalyzeErrorKind::BreakOutsideLoop => "break outside loop",
+            AnalyzeErrorKind::ContinueOutsideLoop => "continue outside loop",
         }
     }
 
@@ -141,6 +151,8 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::AssignmentToImmutable(name) => {
                 format!("Cannot assign to immutable variable '{}'", name)
             }
+            AnalyzeErrorKind::BreakOutsideLoop => "break outside loop".to_string(),
+            AnalyzeErrorKind::ContinueOutsideLoop => "continue outside loop".to_string(),
         }
     }
 
@@ -158,6 +170,12 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::TypeMismatch { .. } => {
                 Some("all types in Eris must match exactly; there is no implicit type conversion".to_string())
+            }
+            AnalyzeErrorKind::BreakOutsideLoop => {
+                Some("break is only valid inside a loop body".to_string())
+            }
+            AnalyzeErrorKind::ContinueOutsideLoop => {
+                Some("continue is only valid inside a loop body".to_string())
             }
             _ => None,
         }

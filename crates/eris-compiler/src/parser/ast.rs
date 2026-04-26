@@ -34,6 +34,12 @@ pub enum StmtKind {
         body: Expr
     },
     ReturnStmt(Option<Expr>),
+    WhileLoop {
+        condition: Expr,
+        body: Box<Expr>,
+    },
+    Break,
+    Continue,
 }
 
 #[derive(Debug, Clone, PartialEq)]

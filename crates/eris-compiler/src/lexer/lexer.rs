@@ -36,6 +36,12 @@ pub enum Token {
     True,
     #[token("false")]
     False,
+    #[token("while")]
+    While,
+    #[token("break")]
+    Break,
+    #[token("continue")]
+    Continue,
 
     // Operators
     #[token(":=")]

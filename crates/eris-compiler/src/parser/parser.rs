@@ -406,6 +406,25 @@ impl Parser {
                 }
             }
 
+            Some((Token::While, _)) => {
+                self.advance(); // consume 'while'
+                let condition = self.parse_expression()?;
+                let body = self.parse_block_expression()?;
+                StmtKind::WhileLoop { condition, body: Box::new(body) }
+            }
+
+            Some((Token::Break, _)) => {
+                self.advance(); // consume 'break'
+                self.expect(&[Token::Semicolon])?;
+                StmtKind::Break
+            }
+
+            Some((Token::Continue, _)) => {
+                self.advance(); // consume 'continue'
+                self.expect(&[Token::Semicolon])?;
+                StmtKind::Continue
+            }
+
             Some((_, _loc)) => {
                 // Try to parse it as an expression statement
                 let expr = self.parse_expression()?;
@@ -1772,6 +1791,30 @@ mod tests {
                 assert!(msg.contains("mismatch"));
             },
             _ => panic!("Expected InvalidSyntax error"),
+        }
+    }
+
+    #[test]
+    fn test_while_loop_parses() {
+        let source = "int main() { while true { break; } return 0; }";
+        let program = parse_source(source).unwrap();
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => match &body.kind {
+                ExprKind::BlockExpr { statements, .. } => {
+                    assert!(matches!(statements[0].kind, StmtKind::WhileLoop { .. }));
+                    match &statements[0].kind {
+                        StmtKind::WhileLoop { body, .. } => match &body.kind {
+                            ExprKind::BlockExpr { statements, .. } => {
+                                assert!(matches!(statements[0].kind, StmtKind::Break));
+                            }
+                            _ => panic!("expected block body"),
+                        },
+                        _ => unreachable!(),
+                    }
+                }
+                _ => panic!("expected block body for main"),
+            },
+            _ => panic!("expected FuncDecl"),
         }
     }
 }

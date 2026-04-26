@@ -11,6 +11,7 @@ use crate::parser::ast::{
 pub struct Analyzer {
     scopes: Vec<Scope>,
     errors: Vec<AnalyzeError>,
+    loop_depth: usize,
 }
 
 impl Analyzer {
@@ -18,6 +19,7 @@ impl Analyzer {
         let mut analyzer = Analyzer {
             scopes: vec![Scope::default()],
             errors: Vec::new(),
+            loop_depth: 0,
         };
 
         // Register built-in I/O functions
@@ -238,6 +240,37 @@ impl Analyzer {
                             statement.location.clone(),
                         ));
                     }
+                }
+            }
+            StmtKind::WhileLoop { condition, body } => {
+                let cond_type = self.analyze_expression(condition, None);
+                if cond_type != Some(TypeKind::Bool) {
+                    self.errors.push(AnalyzeError::new(
+                        AnalyzeErrorKind::TypeMismatch {
+                            expected: TypeKind::Bool,
+                            found: cond_type.unwrap_or(TypeKind::Int),
+                        },
+                        condition.location.clone(),
+                    ));
+                }
+                self.loop_depth += 1;
+                self.analyze_expression(body, expected_return_type);
+                self.loop_depth -= 1;
+            }
+            StmtKind::Break => {
+                if self.loop_depth == 0 {
+                    self.errors.push(AnalyzeError::new(
+                        AnalyzeErrorKind::BreakOutsideLoop,
+                        statement.location.clone(),
+                    ));
+                }
+            }
+            StmtKind::Continue => {
+                if self.loop_depth == 0 {
+                    self.errors.push(AnalyzeError::new(
+                        AnalyzeErrorKind::ContinueOutsideLoop,
+                        statement.location.clone(),
+                    ));
                 }
             }
         }
