@@ -8,6 +8,30 @@ use eris_compiler::lexer::Lexer;
 use eris_compiler::parser::Parser;
 
 #[test]
+fn break_outside_loop_emits_e0207() {
+    let source = "int main() { break; return 0; }";
+    let mut lex = Lexer::new(source);
+    let toks = lex.tokenize().unwrap();
+    let mut p = Parser::new(toks);
+    let program = p.parse_program().unwrap();
+    let mut a = Analyzer::new();
+    let errors = a.analyze_program(&program).unwrap_err();
+    assert!(errors.iter().any(|e| matches!(e.kind, AnalyzeErrorKind::BreakOutsideLoop)));
+}
+
+#[test]
+fn continue_outside_loop_emits_e0208() {
+    let source = "int main() { continue; return 0; }";
+    let mut lex = Lexer::new(source);
+    let toks = lex.tokenize().unwrap();
+    let mut p = Parser::new(toks);
+    let program = p.parse_program().unwrap();
+    let mut a = Analyzer::new();
+    let errors = a.analyze_program(&program).unwrap_err();
+    assert!(errors.iter().any(|e| matches!(e.kind, AnalyzeErrorKind::ContinueOutsideLoop)));
+}
+
+#[test]
 fn analyze_type_mismatch_emits_e0203_with_type_fields() {
     let err = AnalyzeError::new(
         AnalyzeErrorKind::TypeMismatch {
