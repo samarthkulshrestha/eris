@@ -1055,4 +1055,31 @@ mod tests {
         // && and || lower through branch instructions
         assert!(ir.contains("br i1"));
     }
+
+    #[test]
+    fn ir_emits_while_loop_with_branch_back() {
+        let ir = compile_to_ir(
+            "int main() {
+                mut int i := 0;
+                while i < 5 { i = i + 1; }
+                return i;
+            }",
+        );
+        assert!(ir.contains("while.cond"), "expected while.cond block label");
+        assert!(ir.contains("while.body"), "expected while.body block label");
+        assert!(ir.contains("while.after"), "expected while.after block label");
+        assert!(ir.contains("icmp slt"));
+    }
+
+    #[test]
+    fn ir_emits_break_branch_to_after_block() {
+        let ir = compile_to_ir(
+            "int main() {
+                mut int i := 0;
+                while true { if i == 3 { break; } i = i + 1; }
+                return i;
+            }",
+        );
+        assert!(ir.contains("while.after"));
+    }
 }
