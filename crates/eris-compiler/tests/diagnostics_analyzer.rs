@@ -7,6 +7,78 @@ use eris_compiler::analyzer::Analyzer;
 use eris_compiler::lexer::Lexer;
 use eris_compiler::parser::Parser;
 
+fn analyze(source: &str) -> Result<(), Vec<eris_compiler::analyzer::AnalyzeError>> {
+    let mut lex = Lexer::new(source);
+    let toks = lex.tokenize().unwrap();
+    let mut p = Parser::new(toks);
+    let program = p.parse_program().unwrap();
+    let mut a = Analyzer::new();
+    a.analyze_program(&program)
+}
+
+fn has_missing_return(errs: &[eris_compiler::analyzer::AnalyzeError], func: &str) -> bool {
+    errs.iter().any(|e| matches!(&e.kind, AnalyzeErrorKind::MissingReturn(n) if n == func))
+}
+
+#[test]
+fn function_with_trailing_expression_passes() {
+    let result = analyze("int square(int x) { x * x } int main() { return 0; }");
+    assert!(result.is_ok(), "expected ok, got {:?}", result);
+}
+
+#[test]
+fn function_with_exhaustive_if_else_returns_passes() {
+    let source = "
+        int sign(int x) {
+            if x > 0 { return 1; } else { return -1; }
+        }
+        int main() { return sign(5); }
+    ";
+    let result = analyze(source);
+    assert!(result.is_ok(), "expected ok, got {:?}", result);
+}
+
+#[test]
+fn function_with_final_return_passes() {
+    let result = analyze("int main() { int x := 5; return x; }");
+    assert!(result.is_ok(), "expected ok, got {:?}", result);
+}
+
+#[test]
+fn function_with_no_return_fails_with_e0209() {
+    let result = analyze("int main() { int x := 5; }");
+    let errs = result.unwrap_err();
+    assert!(has_missing_return(&errs, "main"), "expected MissingReturn for 'main', got {:?}", errs);
+}
+
+#[test]
+fn function_ending_in_infinite_loop_fails_with_e0209() {
+    let result = analyze("int main() { while true { print_int(1); } }");
+    let errs = result.unwrap_err();
+    assert!(has_missing_return(&errs, "main"), "expected MissingReturn for 'main', got {:?}", errs);
+}
+
+#[test]
+fn function_with_non_exhaustive_if_fails_with_e0209() {
+    let source = "int classify(int x) { if x > 0 { return 1; } } int main() { return classify(5); }";
+    let result = analyze(source);
+    let errs = result.unwrap_err();
+    assert!(has_missing_return(&errs, "classify"), "expected MissingReturn for 'classify', got {:?}", errs);
+}
+
+#[test]
+fn function_with_one_returning_branch_fails_with_e0209() {
+    let source = "
+        int classify(int x) {
+            if x > 0 { return 1; } else { int y := -1; }
+        }
+        int main() { return classify(5); }
+    ";
+    let result = analyze(source);
+    let errs = result.unwrap_err();
+    assert!(has_missing_return(&errs, "classify"), "expected MissingReturn for 'classify', got {:?}", errs);
+}
+
 #[test]
 fn undeclared_var_in_while_condition_does_not_trigger_spurious_type_mismatch() {
     let source = "int main() { while undefined_cond { return 0; } return 1; }";

@@ -228,6 +228,13 @@ impl Analyzer {
                 self.analyze_expression(body, return_type.as_ref().map(|t| t.kind.clone()));
                 self.loop_depth = saved_loop_depth;
 
+                if return_type.is_some() && !expr_always_returns(body) {
+                    self.errors.push(AnalyzeError::new(
+                        AnalyzeErrorKind::MissingReturn(name.name.clone()),
+                        name.location.clone(),
+                    ));
+                }
+
                 self.exit_scope();
             }
             StmtKind::ReturnStmt(expr) => {
@@ -545,6 +552,59 @@ impl Analyzer {
             }
             _ => None,
         }
+    }
+}
+
+fn expr_always_returns(expr: &Expr) -> bool {
+    match &expr.kind {
+        ExprKind::BlockExpr { statements, ret } => {
+            if let Some(trailing) = ret {
+                // A trailing expression is the function's return value, but only
+                // if it is itself guaranteed to produce a value on all paths.
+                // Simple literals and identifiers always produce a value; a
+                // one-armed IfExpr does not.
+                expr_trailing_is_complete(trailing)
+            } else {
+                statements.last().map_or(false, stmt_always_returns)
+            }
+        }
+        ExprKind::IfExpr { then_branch, else_branch, .. } => {
+            then_branch.as_ref().map_or(false, |b| expr_always_returns(b))
+                && else_branch.as_ref().map_or(false, |b| expr_always_returns(b))
+        }
+        _ => false,
+    }
+}
+
+/// Returns true when `expr` is certain to produce a value on every control-flow
+/// path (i.e. it is safe to use as a trailing return expression).
+fn expr_trailing_is_complete(expr: &Expr) -> bool {
+    match &expr.kind {
+        // A nested block is complete if it always returns from inside, or its
+        // own trailing expression is complete.
+        ExprKind::BlockExpr { .. } => expr_always_returns(expr),
+        // An if expression is only complete when both branches are present and
+        // each is itself complete (either returns or produces a value).
+        ExprKind::IfExpr { then_branch, else_branch, .. } => {
+            let then_ok = then_branch
+                .as_ref()
+                .map_or(false, |b| expr_always_returns(b) || expr_trailing_is_complete(b));
+            let else_ok = else_branch
+                .as_ref()
+                .map_or(false, |b| expr_always_returns(b) || expr_trailing_is_complete(b));
+            then_ok && else_ok
+        }
+        // Everything else (literals, identifiers, binary/unary exprs, calls,
+        // parens, tuples) always produces a value.
+        _ => true,
+    }
+}
+
+fn stmt_always_returns(stmt: &Stmt) -> bool {
+    match &stmt.kind {
+        StmtKind::ReturnStmt(_) => true,
+        StmtKind::ExprStmt(expr) => expr_always_returns(expr),
+        _ => false,
     }
 }
 

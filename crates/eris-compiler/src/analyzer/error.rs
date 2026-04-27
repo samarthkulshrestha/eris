@@ -23,6 +23,7 @@ pub enum AnalyzeErrorKind {
     AssignmentToImmutable(String),
     BreakOutsideLoop,
     ContinueOutsideLoop,
+    MissingReturn(String),
 }
 
 impl AnalyzeError {
@@ -103,6 +104,15 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
             AnalyzeErrorKind::ContinueOutsideLoop => {
                 (ErrorCode::E0208, "continue outside loop".to_string(), Map::new())
             }
+            AnalyzeErrorKind::MissingReturn(name) => {
+                let mut fields = Map::new();
+                fields.insert("function".to_string(), Value::String(name.clone()));
+                (
+                    ErrorCode::E0209,
+                    format!("function '{}' may finish without returning a value", name),
+                    fields,
+                )
+            }
         };
 
         Diagnostic {
@@ -128,6 +138,7 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::AssignmentToImmutable(_) => "assignment to immutable variable",
             AnalyzeErrorKind::BreakOutsideLoop => "break outside loop",
             AnalyzeErrorKind::ContinueOutsideLoop => "continue outside loop",
+            AnalyzeErrorKind::MissingReturn(_) => "missing return",
         }
     }
 
@@ -153,6 +164,9 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::BreakOutsideLoop => "break outside loop".to_string(),
             AnalyzeErrorKind::ContinueOutsideLoop => "continue outside loop".to_string(),
+            AnalyzeErrorKind::MissingReturn(name) => {
+                format!("function '{}' may finish without returning a value", name)
+            }
         }
     }
 
@@ -176,6 +190,9 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::ContinueOutsideLoop => {
                 Some("continue is only valid inside a loop body".to_string())
+            }
+            AnalyzeErrorKind::MissingReturn(_) => {
+                Some("non-void functions must end with a return statement or a trailing expression on every control-flow path".to_string())
             }
             _ => None,
         }

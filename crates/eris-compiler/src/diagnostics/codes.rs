@@ -23,6 +23,7 @@ pub enum ErrorCode {
     E0206,
     E0207,
     E0208,
+    E0209,
 }
 
 /// Single source of truth for error code string values.
@@ -40,6 +41,7 @@ const ALL_CODES: &[(ErrorCode, &str)] = &[
     (ErrorCode::E0206, "E0206"),
     (ErrorCode::E0207, "E0207"),
     (ErrorCode::E0208, "E0208"),
+    (ErrorCode::E0209, "E0209"),
 ];
 
 impl ErrorCode {
