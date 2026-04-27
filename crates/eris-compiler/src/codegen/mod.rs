@@ -804,13 +804,26 @@ impl<'ctx> CodeGen<'ctx> {
         // Save current variable scope
         let saved_variables = self.variables.clone();
 
-        // Generate statements
+        // Generate statements, stopping early if the current block is already
+        // terminated (e.g. by a break or continue). Inserting into a terminated
+        // block produces invalid IR ("instruction after terminator").
         for stmt in statements {
+            if self.builder.get_insert_block()
+                .and_then(|b| b.get_terminator())
+                .is_some()
+            {
+                break;
+            }
             self.generate_statement(stmt)?;
         }
 
-        // Generate return value
-        let result = if let Some(ret_expr) = ret {
+        // Generate return value, but only if the block is not already terminated.
+        let result = if self.builder.get_insert_block()
+            .and_then(|b| b.get_terminator())
+            .is_some()
+        {
+            self.void_placeholder()
+        } else if let Some(ret_expr) = ret {
             self.generate_expression(ret_expr)?
         } else {
             // Return a default value (0 for now)
@@ -1081,5 +1094,23 @@ mod tests {
             }",
         );
         assert!(ir.contains("while.after"));
+    }
+
+    #[test]
+    fn ir_break_in_loop_body_does_not_emit_dead_code_after_it() {
+        // Statement after break would otherwise produce "instruction after terminator".
+        let ir = compile_to_ir(
+            "int main() {
+                mut int i := 0;
+                while true {
+                    if i == 3 { break; i = i + 100; }
+                    i = i + 1;
+                }
+                return i;
+            }",
+        );
+        // Should compile cleanly. The statement `i = i + 100` after `break` should
+        // not generate a store at all (it's unreachable).
+        assert!(!ir.contains("add i64 %i, 100"), "unreachable add should not be emitted");
     }
 }
