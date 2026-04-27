@@ -247,14 +247,16 @@ impl Analyzer {
             }
             StmtKind::WhileLoop { condition, body } => {
                 let cond_type = self.analyze_expression(condition, None);
-                if cond_type != Some(TypeKind::Bool) {
-                    self.errors.push(AnalyzeError::new(
-                        AnalyzeErrorKind::TypeMismatch {
-                            expected: TypeKind::Bool,
-                            found: cond_type.unwrap_or(TypeKind::Int),
-                        },
-                        condition.location.clone(),
-                    ));
+                if let Some(found) = &cond_type {
+                    if *found != TypeKind::Bool {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::TypeMismatch {
+                                expected: TypeKind::Bool,
+                                found: found.clone(),
+                            },
+                            condition.location.clone(),
+                        ));
+                    }
                 }
                 self.loop_depth += 1;
                 self.analyze_expression(body, expected_return_type);

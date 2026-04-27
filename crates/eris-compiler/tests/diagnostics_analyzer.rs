@@ -8,6 +8,25 @@ use eris_compiler::lexer::Lexer;
 use eris_compiler::parser::Parser;
 
 #[test]
+fn undeclared_var_in_while_condition_does_not_trigger_spurious_type_mismatch() {
+    let source = "int main() { while undefined_cond { return 0; } return 1; }";
+    let mut lex = Lexer::new(source);
+    let toks = lex.tokenize().unwrap();
+    let mut p = Parser::new(toks);
+    let program = p.parse_program().unwrap();
+    let mut a = Analyzer::new();
+    let errors = a.analyze_program(&program).unwrap_err();
+
+    let codes: Vec<_> = errors.iter().map(|e| match &e.kind {
+        AnalyzeErrorKind::UndeclaredVariable(_) => "E0201",
+        AnalyzeErrorKind::TypeMismatch { .. } => "E0203",
+        _ => "other",
+    }).collect();
+    assert!(codes.contains(&"E0201"), "expected E0201, got {:?}", codes);
+    assert!(!codes.contains(&"E0203"), "should not emit spurious E0203, got {:?}", codes);
+}
+
+#[test]
 fn break_inside_function_declared_in_loop_still_emits_e0207() {
     let source = r#"
         int outer() {
