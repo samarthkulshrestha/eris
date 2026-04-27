@@ -12,6 +12,7 @@ pub struct Analyzer {
     scopes: Vec<Scope>,
     errors: Vec<AnalyzeError>,
     loop_depth: usize,
+    current_function_name: Option<String>,
 }
 
 impl Analyzer {
@@ -20,6 +21,7 @@ impl Analyzer {
             scopes: vec![Scope::default()],
             errors: Vec::new(),
             loop_depth: 0,
+            current_function_name: None,
         };
 
         // Register built-in I/O functions
@@ -225,7 +227,10 @@ impl Analyzer {
 
                 let saved_loop_depth = self.loop_depth;
                 self.loop_depth = 0;
+                let saved_fn_name = self.current_function_name.clone();
+                self.current_function_name = Some(name.name.clone());
                 self.analyze_expression(body, return_type.as_ref().map(|t| t.kind.clone()));
+                self.current_function_name = saved_fn_name;
                 self.loop_depth = saved_loop_depth;
 
                 if return_type.is_some() && !expr_always_returns(body) {
@@ -239,6 +244,15 @@ impl Analyzer {
             }
             StmtKind::ReturnStmt(expr) => {
                 let expr_type = expr.as_ref().and_then(|e| self.analyze_expression(e, expected_return_type.clone()));
+
+                if expr.is_none() && expected_return_type.is_some() {
+                    if let Some(fn_name) = self.current_function_name.as_ref() {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::ReturnMissingValue { function: fn_name.clone() },
+                            statement.location.clone(),
+                        ));
+                    }
+                }
 
                 if let (Some(expected), Some(found)) = (&expected_return_type, &expr_type) {
                     if expected != found {

@@ -24,6 +24,7 @@ pub enum AnalyzeErrorKind {
     BreakOutsideLoop,
     ContinueOutsideLoop,
     MissingReturn(String),
+    ReturnMissingValue { function: String },
 }
 
 impl AnalyzeError {
@@ -113,6 +114,15 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
                     fields,
                 )
             }
+            AnalyzeErrorKind::ReturnMissingValue { function } => {
+                let mut fields = Map::new();
+                fields.insert("function".to_string(), Value::String(function.clone()));
+                (
+                    ErrorCode::E0219,
+                    format!("function '{}' returns without a value but is declared to return a value", function),
+                    fields,
+                )
+            }
         };
 
         Diagnostic {
@@ -139,6 +149,7 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::BreakOutsideLoop => "break outside loop",
             AnalyzeErrorKind::ContinueOutsideLoop => "continue outside loop",
             AnalyzeErrorKind::MissingReturn(_) => "missing return",
+            AnalyzeErrorKind::ReturnMissingValue { .. } => "return without value",
         }
     }
 
@@ -167,6 +178,9 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::MissingReturn(name) => {
                 format!("function '{}' may finish without returning a value", name)
             }
+            AnalyzeErrorKind::ReturnMissingValue { function } => {
+                format!("function '{}' returns without a value but is declared to return a value", function)
+            }
         }
     }
 
@@ -193,6 +207,9 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::MissingReturn(_) => {
                 Some("non-void functions must end with a return statement or a trailing expression on every control-flow path".to_string())
+            }
+            AnalyzeErrorKind::ReturnMissingValue { .. } => {
+                Some("supply a return value, e.g. `return 0;`, or change the function's return type".to_string())
             }
             _ => None,
         }

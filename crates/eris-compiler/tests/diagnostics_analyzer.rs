@@ -198,6 +198,18 @@ fn analyze_incorrect_arg_count_emits_e0204_with_numbers() {
 }
 
 #[test]
+fn return_without_value_in_non_void_function_fails_with_e0219() {
+    let result = analyze("int main() { return; }");
+    let errs = result.unwrap_err();
+    assert!(
+        errs.iter().any(|e| matches!(&e.kind,
+            AnalyzeErrorKind::ReturnMissingValue { function } if function == "main")),
+        "expected ReturnMissingValue for 'main', got {:?}",
+        errs.iter().map(|e| &e.kind).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn undeclared_var_does_not_trigger_spurious_type_mismatch() {
     let source = "int main() { return undefined_var; }";
     let mut lex = Lexer::new(source);
