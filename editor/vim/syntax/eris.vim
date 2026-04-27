@@ -9,14 +9,11 @@ if exists("b:current_syntax")
   finish
 endif
 
-" --- Comments -----------------------------------------------------------
-" Doc comments (--- ...) and line comments (-- ...). The doc-comment
-" pattern is defined first so it wins on '---' prefixes via Vim's
-" longer-match-wins rule. The line-comment pattern explicitly excludes
-" a third dash and also handles the bare '--' case.
-syn match erisDocComment    "---.*$"
-syn match erisLineComment   "--$"
-syn match erisLineComment   "--[^-].*$"
+" Pattern definition order matters in this file: when multiple `syn match`
+" items can start at the same position, the one defined LAST wins. The
+" comment patterns are intentionally placed at the bottom so that they
+" beat the single-char `-` arm of the operator pattern; otherwise the
+" `--` of a comment renders as two operators.
 
 " --- Keywords -----------------------------------------------------------
 syn keyword erisKeyword     if else return while break continue mut
@@ -27,7 +24,6 @@ syn keyword erisBoolean     true false
 syn keyword erisBuiltin     print_int print_str print_char print_bool println read_int
 
 " --- Literals -----------------------------------------------------------
-" Floats first so they win against the integer pattern on the leading digits.
 syn match erisFloat         "\<\d\+\.\d\+\>"
 syn match erisInt           "\<\d\+\>"
 
@@ -41,9 +37,14 @@ syn match erisOperator      "[=!<>]="
 syn match erisOperator      "&&\|||"
 syn match erisOperator      "[+\-*/%=<>!]"
 
-" --- Function definitions / call sites ----------------------------------
+" --- Function names -----------------------------------------------------
 " Heuristic: an identifier immediately followed by '(' is a function name.
 syn match erisFunction      "\<\h\w*\ze\s*("
+
+" --- Comments (LAST: must win the priority battle against `-` operator) -
+syn match erisDocComment    "---.*$"
+syn match erisLineComment   "--$"
+syn match erisLineComment   "--[^-].*$"
 
 " --- Highlight groups ---------------------------------------------------
 hi def link erisLineComment  Comment
