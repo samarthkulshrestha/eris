@@ -198,6 +198,24 @@ fn analyze_incorrect_arg_count_emits_e0204_with_numbers() {
 }
 
 #[test]
+fn else_if_chain_without_final_else_fails_with_e0209() {
+    let source = "
+        int classify(int x) {
+            if x > 0 { return 1; } else if x == 0 { return 0; }
+        }
+        int main() { return classify(5); }
+    ";
+    let result = analyze(source);
+    let errs = result.unwrap_err();
+    assert!(
+        errs.iter().any(|e| matches!(&e.kind,
+            AnalyzeErrorKind::MissingReturn(name) if name == "classify")),
+        "expected MissingReturn for 'classify', got {:?}",
+        errs.iter().map(|e| &e.kind).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn return_without_value_in_non_void_function_fails_with_e0219() {
     let result = analyze("int main() { return; }");
     let errs = result.unwrap_err();
