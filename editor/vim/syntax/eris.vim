@@ -10,11 +10,13 @@ if exists("b:current_syntax")
 endif
 
 " --- Comments -----------------------------------------------------------
-" Doc comments (--- ...) must be defined before line comments so they
-" take priority on '---' prefixes. Line comments require exactly two
-" leading dashes (negative lookahead for a third).
+" Doc comments (--- ...) and line comments (-- ...). The doc-comment
+" pattern is defined first so it wins on '---' prefixes via Vim's
+" longer-match-wins rule. The line-comment pattern explicitly excludes
+" a third dash and also handles the bare '--' case.
 syn match erisDocComment    "---.*$"
-syn match erisLineComment   "--\(-\)\@!.*$"
+syn match erisLineComment   "--$"
+syn match erisLineComment   "--[^-].*$"
 
 " --- Keywords -----------------------------------------------------------
 syn keyword erisKeyword     if else return while break continue mut
