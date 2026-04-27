@@ -123,6 +123,16 @@ cargo fmt
 cargo clippy --workspace
 ```
 
+## Editor support
+
+A regex-based syntax-highlighting file for Vim/Neovim lives at `editor/vim/`. To enable it, add the directory to your `runtimepath`:
+
+```vim
+set runtimepath^=/path/to/eris/editor/vim
+```
+
+That picks up the syntax file (`syntax/eris.vim`) and the filetype detection (`ftdetect/eris.vim` — associates `*.eris` with the `eris` filetype).
+
 ## License
 
 MIT.
