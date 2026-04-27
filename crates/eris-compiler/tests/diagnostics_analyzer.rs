@@ -8,6 +8,34 @@ use eris_compiler::lexer::Lexer;
 use eris_compiler::parser::Parser;
 
 #[test]
+fn break_inside_function_declared_in_loop_still_emits_e0207() {
+    let source = r#"
+        int outer() {
+            while true {
+                int inner() {
+                    break;
+                    return 0;
+                }
+                return inner();
+            }
+            return 0;
+        }
+        int main() { return outer(); }
+    "#;
+    let mut lex = Lexer::new(source);
+    let toks = lex.tokenize().unwrap();
+    let mut p = Parser::new(toks);
+    let program = p.parse_program().unwrap();
+    let mut a = Analyzer::new();
+    let errors = a.analyze_program(&program).unwrap_err();
+    assert!(
+        errors.iter().any(|e| matches!(e.kind, AnalyzeErrorKind::BreakOutsideLoop)),
+        "expected BreakOutsideLoop for break inside nested function: got {:?}",
+        errors.iter().map(|e| &e.kind).collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn break_outside_loop_emits_e0207() {
     let source = "int main() { break; return 0; }";
     let mut lex = Lexer::new(source);

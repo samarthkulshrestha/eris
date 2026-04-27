@@ -469,10 +469,12 @@ impl<'ctx> CodeGen<'ctx> {
         let entry_block = self.context.append_basic_block(function, "entry");
         self.builder.position_at_end(entry_block);
 
-        // Save current variable scope; ensure restoration even on error.
+        // Save current variable scope and loop stack; ensure restoration even on error.
         let saved_variables = std::mem::take(&mut self.variables);
+        let saved_loop_stack = std::mem::take(&mut self.loop_stack);
         let result = self.generate_function_body(function, parameters, body);
         self.variables = saved_variables;
+        self.loop_stack = saved_loop_stack;
         self.current_function = None;
         result
     }

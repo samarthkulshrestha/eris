@@ -223,7 +223,10 @@ impl Analyzer {
                     }
                 }
 
+                let saved_loop_depth = self.loop_depth;
+                self.loop_depth = 0;
                 self.analyze_expression(body, return_type.as_ref().map(|t| t.kind.clone()));
+                self.loop_depth = saved_loop_depth;
 
                 self.exit_scope();
             }
