@@ -819,7 +819,10 @@ impl<'ctx> CodeGen<'ctx> {
             self.generate_statement(stmt)?;
         }
 
-        // Generate return value, but only if the block is not already terminated.
+        // Emit the trailing expression only if the block is not already terminated.
+        // A block whose final statement was a terminator (break, continue, return)
+        // has no live insert point; attempting to emit `ret` here would produce
+        // invalid IR ("instruction after terminator").
         let result = if self.builder.get_insert_block()
             .and_then(|b| b.get_terminator())
             .is_some()
@@ -828,7 +831,6 @@ impl<'ctx> CodeGen<'ctx> {
         } else if let Some(ret_expr) = ret {
             self.generate_expression(ret_expr)?
         } else {
-            // Return a default value (0 for now)
             self.void_placeholder()
         };
 
