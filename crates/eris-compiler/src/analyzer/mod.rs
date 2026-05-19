@@ -166,20 +166,20 @@ impl Analyzer {
                 self.analyze_expression(expr, None);
             }
             StmtKind::Assignment { target, value } => {
-                // Check if target is mutable
-                if let ExprKind::IdentExpr(ident) = &target.kind {
+                // Walk through ArrayIndex chains to find the root identifier whose
+                // mutability decides whether the assignment is legal.
+                let mut root = target;
+                while let ExprKind::ArrayIndex { array, .. } = &root.kind {
+                    root = array;
+                }
+                if let ExprKind::IdentExpr(ident) = &root.kind {
                     if let Some(symbol) = self.find_symbol(&ident.name) {
-                        match symbol {
-                            Symbol::Variable { mutable, .. } => {
-                                if !mutable {
-                                    self.errors.push(AnalyzeError::new(
-                                        AnalyzeErrorKind::AssignmentToImmutable(ident.name.clone()),
-                                        target.location.clone(),
-                                    ));
-                                }
-                            }
-                            _ => {
-                                // Not a variable, this will be caught elsewhere
+                        if let Symbol::Variable { mutable, .. } = symbol {
+                            if !mutable {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::AssignmentToImmutable(ident.name.clone()),
+                                    target.location.clone(),
+                                ));
                             }
                         }
                     }
@@ -189,7 +189,7 @@ impl Analyzer {
                 let value_type = self.analyze_expression(value, None);
 
                 if let (Some(a), Some(b)) = (&target_type, &value_type) {
-                    if a != b {
+                    if !types_compatible(a, b) {
                         self.errors.push(AnalyzeError::new(
                             AnalyzeErrorKind::TypeMismatch {
                                 expected: a.clone(),
@@ -269,7 +269,7 @@ impl Analyzer {
                 }
 
                 if let (Some(expected), Some(found)) = (&expected_return_type, &expr_type) {
-                    if expected != found {
+                    if !types_compatible(expected, found) {
                         self.errors.push(AnalyzeError::new(
                             AnalyzeErrorKind::TypeMismatch {
                                 expected: expected.clone(),
@@ -464,6 +464,38 @@ impl Analyzer {
                 function,
                 arguments,
             } => {
+                // Polymorphic builtin: len(arr) -> Int, for any array type.
+                if function.name == "len" {
+                    if arguments.len() != 1 {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::IncorrectArgumentCount {
+                                expected: 1,
+                                found: arguments.len(),
+                            },
+                            expression.location.clone(),
+                        ));
+                        return Some(TypeKind::Int);
+                    }
+                    let arg_ty = self.analyze_expression(&arguments[0], None);
+                    match arg_ty {
+                        Some(TypeKind::Array { .. }) => {}
+                        Some(found) => {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::TypeMismatch {
+                                    expected: TypeKind::Array {
+                                        element: Box::new(TypeKind::Int),
+                                        size: 0,
+                                    },
+                                    found,
+                                },
+                                arguments[0].location.clone(),
+                            ));
+                        }
+                        None => {}
+                    }
+                    return Some(TypeKind::Int);
+                }
+
                 if let Some(Symbol::Function {
                     parameters,
                     return_type,
@@ -613,8 +645,51 @@ impl Analyzer {
                     }
                 }
             }
-            ExprKind::ArrayIndex { .. } => {
-                todo!("array indexing analysis not yet implemented")
+            ExprKind::ArrayIndex { array, index } => {
+                let array_ty = self.analyze_expression(array, None);
+                let index_ty = self.analyze_expression(index, None);
+
+                if let Some(found) = &index_ty {
+                    if *found != TypeKind::Int {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::IndexNotInteger {
+                                found: found.clone(),
+                            },
+                            index.location.clone(),
+                        ));
+                    }
+                }
+
+                if let Some(TypeKind::Array { size, .. }) = &array_ty {
+                    use crate::parser::ast::UnaryOp;
+                    let literal_index = match &index.kind {
+                        ExprKind::IntLit(n) => Some(*n),
+                        ExprKind::UnaryExpr {
+                            op: UnaryOp::Neg,
+                            expression,
+                        } => match &expression.kind {
+                            ExprKind::IntLit(n) => Some(-(*n)),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    if let Some(n) = literal_index {
+                        if n < 0 || (n as usize) >= *size {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::IndexOutOfRange {
+                                    array_size: *size,
+                                    index: n,
+                                },
+                                index.location.clone(),
+                            ));
+                        }
+                    }
+                }
+
+                match array_ty {
+                    Some(TypeKind::Array { element, .. }) => Some(*element),
+                    _ => None,
+                }
             }
             _ => None,
         }
@@ -1078,6 +1153,129 @@ mod tests {
             e.kind,
             AnalyzeErrorKind::AssignmentToImmutable(ref n) if n == "i"
         )));
+    }
+
+    #[test]
+    fn array_index_returns_element_type() {
+        let source = r#"
+            int main() {
+                arr[int] a := [10, 20, 30];
+                return a[1];
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn array_index_rejects_non_int_index() {
+        let source = r#"
+            int main() {
+                arr[int] a := [10, 20, 30];
+                return a[true];
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::IndexNotInteger { ref found } if *found == TypeKind::Bool
+        )));
+    }
+
+    #[test]
+    fn array_index_rejects_static_out_of_range() {
+        let source = r#"
+            int main() {
+                arr[int] a := [10, 20, 30];
+                return a[5];
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::IndexOutOfRange { array_size: 3, index: 5 }
+        )));
+    }
+
+    #[test]
+    fn array_element_assignment_requires_mutable_array() {
+        let source = r#"
+            int main() {
+                arr[int] a := [10, 20, 30];
+                a[1] = 99;
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::AssignmentToImmutable(ref n) if n == "a"
+        )));
+    }
+
+    #[test]
+    fn array_element_assignment_on_mutable_array_typechecks() {
+        let source = r#"
+            int main() {
+                mut arr[int] a := [10, 20, 30];
+                a[1] = 99;
+                return a[1];
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn len_returns_int_for_array_argument() {
+        let source = r#"
+            int main() {
+                arr[int] a := [10, 20, 30];
+                return len(a);
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn len_rejects_non_array_argument() {
+        let source = r#"
+            int main() {
+                int x := 5;
+                return len(x);
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::TypeMismatch { .. }
+        )));
+    }
+
+    #[test]
+    fn array_index_with_negative_literal_is_out_of_range() {
+        let source = r#"
+            int main() {
+                arr[int] a := [10, 20, 30];
+                return a[-1];
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::IndexOutOfRange { array_size: 3, index: -1 }
+        )));
+    }
+
+    #[test]
+    fn function_returning_array_typechecks_against_inferred_size() {
+        let source = r#"
+            arr[int] make_three() {
+                return [10, 20, 30];
+            }
+            int main() {
+                return 0;
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
     }
 
     #[test]

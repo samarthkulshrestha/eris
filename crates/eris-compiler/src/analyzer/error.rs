@@ -28,6 +28,13 @@ pub enum AnalyzeErrorKind {
     NonIterableInForLoop {
         found: TypeKind,
     },
+    IndexOutOfRange {
+        array_size: usize,
+        index: i64,
+    },
+    IndexNotInteger {
+        found: TypeKind,
+    },
 }
 
 impl AnalyzeError {
@@ -135,6 +142,31 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
                     fields,
                 )
             }
+            AnalyzeErrorKind::IndexOutOfRange { array_size, index } => {
+                let mut fields = Map::new();
+                fields.insert(
+                    "array_size".to_string(),
+                    Value::Number((*array_size).into()),
+                );
+                fields.insert("index".to_string(), Value::Number((*index).into()));
+                (
+                    ErrorCode::E0221,
+                    format!(
+                        "index {} is out of range for array of size {}",
+                        index, array_size
+                    ),
+                    fields,
+                )
+            }
+            AnalyzeErrorKind::IndexNotInteger { found } => {
+                let mut fields = Map::new();
+                fields.insert("found".to_string(), Value::String(found.to_string()));
+                (
+                    ErrorCode::E0222,
+                    format!("array index must be 'int', found '{}'", found),
+                    fields,
+                )
+            }
         };
 
         Diagnostic {
@@ -163,6 +195,8 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::MissingReturn(_) => "missing return",
             AnalyzeErrorKind::ReturnMissingValue { .. } => "return without value",
             AnalyzeErrorKind::NonIterableInForLoop { .. } => "non-iterable in for-in",
+            AnalyzeErrorKind::IndexOutOfRange { .. } => "index out of range",
+            AnalyzeErrorKind::IndexNotInteger { .. } => "non-integer array index",
         }
     }
 
@@ -197,6 +231,12 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::NonIterableInForLoop { found } => {
                 format!("for-in requires a range expression, but found '{}'", found)
             }
+            AnalyzeErrorKind::IndexOutOfRange { array_size, index } => {
+                format!("index {} is out of range for array of size {}", index, array_size)
+            }
+            AnalyzeErrorKind::IndexNotInteger { found } => {
+                format!("array indices must be of type 'int', found '{}'", found)
+            }
         }
     }
 
@@ -229,6 +269,12 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::NonIterableInForLoop { .. } => {
                 Some("use `start..end` to iterate an integer range, e.g. `for i in 0..10`".to_string())
+            }
+            AnalyzeErrorKind::IndexOutOfRange { array_size, .. } => {
+                Some(format!("valid indices are 0..{} (exclusive upper bound)", array_size))
+            }
+            AnalyzeErrorKind::IndexNotInteger { .. } => {
+                Some("convert the index expression to 'int' before indexing".to_string())
             }
             _ => None,
         }
