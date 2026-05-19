@@ -1314,6 +1314,20 @@ mod tests {
     }
 
     #[test]
+    fn ir_emits_srem_for_modulo() {
+        // Use variables so inkwell's constant-folder doesn't reduce the
+        // expression at IR-build time. We want to see the actual srem op.
+        let ir = compile_to_ir(
+            "int main() {
+                int a := read_int();
+                int b := read_int();
+                return a % b;
+            }",
+        );
+        assert!(ir.contains("srem i64"), "expected signed remainder, got {}", ir);
+    }
+
+    #[test]
     fn ir_emits_for_in_range_with_loop_blocks() {
         let ir = compile_to_ir(
             "int main() {
