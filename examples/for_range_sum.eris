@@ -1,0 +1,8 @@
+-- Sum of 0..10 using a half-open range. Expected exit code: 45.
+int main() {
+    mut int sum := 0;
+    for i in 0..10 {
+        sum = sum + i;
+    }
+    return sum;
+}
