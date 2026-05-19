@@ -34,9 +34,10 @@ syn region erisString       start=+"+ end=+"+ skip=+\\"+
 " --- Operators ----------------------------------------------------------
 syn match erisOperator      ":="
 syn match erisOperator      "\.\."
+syn match erisOperator      "<<\|>>"
 syn match erisOperator      "[=!<>]="
 syn match erisOperator      "&&\|||"
-syn match erisOperator      "[+\-*/%=<>!]"
+syn match erisOperator      "[+\-*/%=<>!&|^~]"
 
 " --- Function names -----------------------------------------------------
 " Heuristic: an identifier immediately followed by '(' is a function name.
