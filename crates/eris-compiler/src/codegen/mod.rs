@@ -383,6 +383,9 @@ impl<'ctx> CodeGen<'ctx> {
                 let elem_ty = self.get_llvm_type(element);
                 elem_ty.array_type(*size as u32).into()
             }
+            TypeKind::Ref { .. } => {
+                todo!("reference codegen not yet implemented")
+            }
         }
     }
 
@@ -787,6 +790,12 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder
                     .build_load(elem_ty, elem_ptr, "arr.idx.val")
                     .map_err(|e| format!("Failed to load array element: {}", e))
+            }
+            ExprKind::TakeRef { .. } => {
+                todo!("reference codegen not yet implemented")
+            }
+            ExprKind::Deref(_) => {
+                todo!("reference codegen not yet implemented")
             }
             _ => Err(format!("Unsupported expression: {:?}", expr.kind)),
         }

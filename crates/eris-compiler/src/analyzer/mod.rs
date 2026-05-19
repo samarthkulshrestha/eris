@@ -668,6 +668,12 @@ impl Analyzer {
                     }
                 }
             }
+            ExprKind::TakeRef { .. } => {
+                todo!("reference analysis not yet implemented")
+            }
+            ExprKind::Deref(_) => {
+                todo!("reference analysis not yet implemented")
+            }
             ExprKind::ArrayIndex { array, index } => {
                 let array_ty = self.analyze_expression(array, None);
                 let index_ty = self.analyze_expression(index, None);

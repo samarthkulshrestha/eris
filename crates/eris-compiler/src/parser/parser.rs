@@ -341,6 +341,34 @@ impl Parser {
                 return self.parse_variable_declarations();
             }
 
+            Some((Token::BitAnd, _)) => {
+                // `&` followed by a type-start token begins a reference-type variable
+                // declaration (`&int x := ...`, `&mut int x := ...`). Anything else is a
+                // bare take-reference expression statement (`&x;`).
+                let saved_token = self.current_token.clone();
+                let saved_pos = self.pos;
+                self.advance(); // consume '&' to peek at what follows
+                let next_is_type_start = self.current_is(&[
+                    Token::Mut,
+                    Token::Int,
+                    Token::Bool,
+                    Token::Float,
+                    Token::Char,
+                    Token::Str,
+                    Token::Arr,
+                    Token::BitAnd,
+                ]);
+                self.current_token = saved_token;
+                self.pos = saved_pos;
+
+                if next_is_type_start {
+                    return self.parse_variable_declarations();
+                }
+                let expr = self.parse_expression()?;
+                self.expect_statement_terminator(&expr)?;
+                StmtKind::ExprStmt(expr)
+            }
+
             Some((Token::Ident(_name), _)) => {
                 // Parse as expression (could be function call, identifier, etc.)
                 let expr = self.parse_expression()?;
@@ -523,7 +551,7 @@ impl Parser {
         };
 
         // Parse type annotation (if present)
-        let typ = if self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str, Token::Arr]) {
+        let typ = if self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str, Token::Arr, Token::BitAnd]) {
             Some(self.parse_type()?)
         } else {
             None
@@ -721,6 +749,20 @@ impl Parser {
             .as_ref()
             .map(|(_, l)| l.clone())
             .unwrap_or_default();
+        if self.current_is(&[Token::BitAnd]) {
+            self.advance(); // consume '&'
+            let mutable = if self.current_is(&[Token::Mut]) {
+                self.advance();
+                true
+            } else {
+                false
+            };
+            let inner = self.parse_type()?;
+            return Ok(Type {
+                kind: TypeKind::Ref { inner: Box::new(inner.kind), mutable },
+                location,
+            });
+        }
         let kind = match &self.current_token {
             Some((Token::Int, _)) => {
                 self.advance();
@@ -977,6 +1019,22 @@ impl Parser {
                     op: crate::parser::ast::UnaryOp::BNot,
                     expression,
                 }
+            }
+            Some((Token::BitAnd, _)) => {
+                self.advance(); // consume '&'
+                let mutable = if self.current_is(&[Token::Mut]) {
+                    self.advance();
+                    true
+                } else {
+                    false
+                };
+                let place = Box::new(self.parse_postfix_expression()?);
+                ExprKind::TakeRef { mutable, place }
+            }
+            Some((Token::Multiply, _)) => {
+                self.advance(); // consume '*'
+                let inner = Box::new(self.parse_postfix_expression()?);
+                ExprKind::Deref(inner)
             }
 
             Some((Token::IntLit(value), _)) => {
@@ -1958,6 +2016,68 @@ mod tests {
     }
 
     #[test]
+    fn test_reference_type_and_take_ref_parse() {
+        let source = "int main() { mut int x := 5; &mut int p := &mut x; return *p; }";
+        let program = parse_source(source).unwrap();
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => match &body.kind {
+                ExprKind::BlockExpr { statements, .. } => {
+                    // statements[1] is `&mut int p := &mut x;` — verify the type
+                    // annotation and initializer shape.
+                    match &statements[1].kind {
+                        StmtKind::VarDecl { typ, initializer, .. } => {
+                            assert!(matches!(
+                                typ.as_ref().unwrap().kind,
+                                TypeKind::Ref { mutable: true, .. }
+                            ));
+                            assert!(matches!(
+                                initializer.kind,
+                                ExprKind::TakeRef { mutable: true, .. }
+                            ));
+                        }
+                        other => panic!("expected VarDecl for p, got {:?}", other),
+                    }
+                    // statements[2] is `return *p;` — verify Deref.
+                    match &statements[2].kind {
+                        StmtKind::ReturnStmt(Some(expr)) => {
+                            assert!(matches!(expr.kind, ExprKind::Deref(_)));
+                        }
+                        other => panic!("expected ReturnStmt with Deref, got {:?}", other),
+                    }
+                }
+                _ => panic!("expected block body"),
+            },
+            _ => panic!("expected FuncDecl"),
+        }
+    }
+
+    #[test]
+    fn test_take_ref_immutable_parse() {
+        // &x without mut should produce TakeRef { mutable: false }.
+        let source = "int main() { int x := 5; &int r := &x; return *r; }";
+        let program = parse_source(source).unwrap();
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => match &body.kind {
+                ExprKind::BlockExpr { statements, .. } => match &statements[1].kind {
+                    StmtKind::VarDecl { typ, initializer, .. } => {
+                        assert!(matches!(
+                            typ.as_ref().unwrap().kind,
+                            TypeKind::Ref { mutable: false, .. }
+                        ));
+                        assert!(matches!(
+                            initializer.kind,
+                            ExprKind::TakeRef { mutable: false, .. }
+                        ));
+                    }
+                    other => panic!("expected VarDecl, got {:?}", other),
+                },
+                _ => panic!(),
+            },
+            _ => panic!(),
+        }
+    }
+
+    #[test]
     fn test_bitwise_above_comparison_precedence() {
         // a & b == c should parse as (a & b) == c (Rust precedence), not a & (b == c) (C).
         let program = parse_source("int main() { return 12 & 10 == 8; }").unwrap();
@@ -1976,5 +2096,34 @@ mod tests {
             },
             _ => panic!(),
         }
+    }
+
+    #[test]
+    fn test_bare_take_ref_statement_parses_as_expression() {
+        // `&x;` should parse as an expression statement, NOT trigger var-decl path.
+        // The statement is useless on its own but must parse cleanly.
+        let source = "int main() { int x := 5; &x; return 0; }";
+        let program = parse_source(source).unwrap();
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => match &body.kind {
+                ExprKind::BlockExpr { statements, .. } => {
+                    match &statements[1].kind {
+                        StmtKind::ExprStmt(expr) => {
+                            assert!(matches!(expr.kind, ExprKind::TakeRef { mutable: false, .. }));
+                        }
+                        other => panic!("expected ExprStmt with TakeRef, got {:?}", other),
+                    }
+                }
+                _ => panic!("expected block body"),
+            },
+            _ => panic!("expected FuncDecl"),
+        }
+    }
+
+    #[test]
+    fn test_ref_var_decl_still_dispatches_to_variable_declarations() {
+        // `&mut int p := &mut x;` must still parse as a var-decl.
+        let source = "int main() { mut int x := 5; &mut int p := &mut x; return *p; }";
+        parse_source(source).expect("ref var-decl should parse");
     }
 }

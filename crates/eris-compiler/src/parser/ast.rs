@@ -64,6 +64,10 @@ pub enum TypeKind {
         element: Box<TypeKind>,
         size: usize,
     },
+    Ref {
+        inner: Box<TypeKind>,
+        mutable: bool,
+    },
 }
 
 impl fmt::Display for TypeKind {
@@ -81,6 +85,8 @@ impl fmt::Display for TypeKind {
                     write!(f, "arr[{}; {}]", element, size)
                 }
             }
+            TypeKind::Ref { inner, mutable: false } => write!(f, "&{}", inner),
+            TypeKind::Ref { inner, mutable: true } => write!(f, "&mut {}", inner),
         }
     }
 }
@@ -112,6 +118,11 @@ pub enum ExprKind {
         right: Box<Expr>
     },
     ParenExpr(Box<Expr>),
+    TakeRef {
+        mutable: bool,
+        place: Box<Expr>,
+    },
+    Deref(Box<Expr>),
     Range {
         start: Box<Expr>,
         end: Box<Expr>,
