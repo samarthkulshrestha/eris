@@ -25,6 +25,9 @@ pub enum AnalyzeErrorKind {
     ContinueOutsideLoop,
     MissingReturn(String),
     ReturnMissingValue { function: String },
+    NonIterableInForLoop {
+        found: TypeKind,
+    },
 }
 
 impl AnalyzeError {
@@ -123,6 +126,15 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
                     fields,
                 )
             }
+            AnalyzeErrorKind::NonIterableInForLoop { found } => {
+                let mut fields = Map::new();
+                fields.insert("found".to_string(), Value::String(found.to_string()));
+                (
+                    ErrorCode::E0220,
+                    format!("expected a range in for-in, found '{}'", found),
+                    fields,
+                )
+            }
         };
 
         Diagnostic {
@@ -150,6 +162,7 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::ContinueOutsideLoop => "continue outside loop",
             AnalyzeErrorKind::MissingReturn(_) => "missing return",
             AnalyzeErrorKind::ReturnMissingValue { .. } => "return without value",
+            AnalyzeErrorKind::NonIterableInForLoop { .. } => "non-iterable in for-in",
         }
     }
 
@@ -181,6 +194,9 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::ReturnMissingValue { function } => {
                 format!("function '{}' returns without a value but is declared to return a value", function)
             }
+            AnalyzeErrorKind::NonIterableInForLoop { found } => {
+                format!("for-in requires a range expression, but found '{}'", found)
+            }
         }
     }
 
@@ -210,6 +226,9 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::ReturnMissingValue { .. } => {
                 Some("supply a return value, e.g. `return 0;`, or change the function's return type".to_string())
+            }
+            AnalyzeErrorKind::NonIterableInForLoop { .. } => {
+                Some("use `start..end` to iterate an integer range, e.g. `for i in 0..10`".to_string())
             }
             _ => None,
         }

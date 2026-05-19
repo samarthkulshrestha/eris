@@ -98,6 +98,20 @@ impl Analyzer {
         None
     }
 
+    fn check_range_endpoint(&mut self, expr: &Expr) {
+        if let Some(found) = self.analyze_expression(expr, None) {
+            if found != TypeKind::Int {
+                self.errors.push(AnalyzeError::new(
+                    AnalyzeErrorKind::TypeMismatch {
+                        expected: TypeKind::Int,
+                        found,
+                    },
+                    expr.location.clone(),
+                ));
+            }
+        }
+    }
+
     pub fn analyze_program(&mut self, program: &Program) -> Result<(), Vec<AnalyzeError>> {
         for statement in &program.statements {
             self.analyze_statement(statement, None);
@@ -299,8 +313,35 @@ impl Analyzer {
                     ));
                 }
             }
-            StmtKind::ForIn { .. } => {
-                todo!("for-in analysis not yet implemented")
+            StmtKind::ForIn { var, iterable, body } => {
+                match &iterable.kind {
+                    ExprKind::Range { start, end } => {
+                        self.check_range_endpoint(start);
+                        self.check_range_endpoint(end);
+                    }
+                    _ => {
+                        if let Some(found) = self.analyze_expression(iterable, None) {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::NonIterableInForLoop { found },
+                                iterable.location.clone(),
+                            ));
+                        }
+                    }
+                }
+
+                self.enter_scope();
+                let _ = self.declare(
+                    &var.name,
+                    Symbol::Variable {
+                        name: var.name.clone(),
+                        type_kind: TypeKind::Int,
+                        mutable: false,
+                    },
+                );
+                self.loop_depth += 1;
+                self.analyze_expression(body, expected_return_type);
+                self.loop_depth -= 1;
+                self.exit_scope();
             }
         }
     }
@@ -463,6 +504,11 @@ impl Analyzer {
                 }
             }
             ExprKind::ParenExpr(expr) => self.analyze_expression(expr, expected_return_type),
+            ExprKind::Range { start, end } => {
+                self.analyze_expression(start, None);
+                self.analyze_expression(end, None);
+                None
+            }
             ExprKind::BlockExpr { statements, ret } => {
                 self.enter_scope();
                 for stmt in statements {
@@ -958,5 +1004,99 @@ mod tests {
         "#;
         let result = analyze_source(source);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn for_in_rejects_non_int_range_endpoints() {
+        let source = r#"
+            int main() {
+                for i in 0..true { print_int(i); }
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::TypeMismatch { ref expected, ref found }
+                if *expected == TypeKind::Int && *found == TypeKind::Bool
+        )));
+    }
+
+    #[test]
+    fn for_in_loop_var_is_int_and_in_scope_in_body() {
+        let source = r#"
+            int main() {
+                mut int total := 0;
+                for i in 0..3 { total = total + i; }
+                return total;
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn for_in_loop_var_leaves_scope_after_loop() {
+        let source = r#"
+            int main() {
+                for i in 0..3 { print_int(i); }
+                print_int(i);
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::UndeclaredVariable(ref n) if n == "i"
+        )));
+    }
+
+    #[test]
+    fn for_in_loop_var_is_immutable() {
+        let source = r#"
+            int main() {
+                for i in 0..3 { i = i + 1; }
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::AssignmentToImmutable(ref n) if n == "i"
+        )));
+    }
+
+    #[test]
+    fn for_in_rejects_non_range_iterable() {
+        use crate::lexer::SourceLocation;
+        use crate::parser::ast::{Expr, ExprKind, Identifier, Program, Stmt, StmtKind};
+
+        let loc = SourceLocation { line: 1, column: 1 };
+
+        // Build: for i in 5 { }  — iterable is IntLit, not a Range
+        let iterable = Expr {
+            kind: ExprKind::IntLit(5),
+            location: loc.clone(),
+        };
+        let body = Expr {
+            kind: ExprKind::BlockExpr { statements: vec![], ret: None },
+            location: loc.clone(),
+        };
+        let stmt = Stmt {
+            kind: StmtKind::ForIn {
+                var: Identifier { name: "i".to_string(), location: loc.clone() },
+                iterable: Box::new(iterable),
+                body: Box::new(body),
+            },
+            location: loc.clone(),
+        };
+        let program = Program { statements: vec![stmt] };
+
+        let mut analyzer = Analyzer::new();
+        let errors = analyzer.analyze_program(&program).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::NonIterableInForLoop { ref found }
+                if *found == TypeKind::Int
+        )));
     }
 }
