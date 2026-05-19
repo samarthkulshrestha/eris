@@ -87,6 +87,20 @@ pub enum Token {
     #[token("!")]
     Not,
 
+    // Bitwise operators
+    #[token("&")]
+    BitAnd,
+    #[token("|")]
+    BitOr,
+    #[token("^")]
+    Caret,
+    #[token("~")]
+    Tilde,
+    #[token("<<")]
+    Shl,
+    #[token(">>")]
+    Shr,
+
     // Delimiters
     #[token("(")]
     LParen,
@@ -170,6 +184,12 @@ impl fmt::Display for Token {
             Token::For => write!(f, "Keyword: for"),
             Token::In => write!(f, "Keyword: in"),
             Token::DotDot => write!(f, "Operator: .."),
+            Token::BitAnd => write!(f, "Operator: &"),
+            Token::BitOr => write!(f, "Operator: |"),
+            Token::Caret => write!(f, "Operator: ^"),
+            Token::Tilde => write!(f, "Operator: ~"),
+            Token::Shl => write!(f, "Operator: <<"),
+            Token::Shr => write!(f, "Operator: >>"),
             _ => write!(f, "{:?}", self),
         }
     }

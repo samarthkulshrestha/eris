@@ -811,6 +811,8 @@ impl Parser {
         Ok(left)
     }
 
+    // Bitwise ops sit above comparisons (Rust-style), not below them (C-style),
+    // so `a & b == c` parses as `(a & b) == c`. This avoids the C precedence footgun.
     fn current_binary_operator_precedence(&self) -> Option<Precedence> {
         match &self.current_token {
             Some((Token::LParen, _)) => Some(Precedence::Group),
@@ -819,6 +821,10 @@ impl Parser {
             | Some((Token::GreaterEqual, _))
             | Some((Token::LessThan, _))
             | Some((Token::LessEqual, _)) => Some(Precedence::Comparison),
+            Some((Token::BitOr, _)) => Some(Precedence::BitOr),
+            Some((Token::Caret, _)) => Some(Precedence::BitXor),
+            Some((Token::BitAnd, _)) => Some(Precedence::BitAnd),
+            Some((Token::Shl, _)) | Some((Token::Shr, _)) => Some(Precedence::Shift),
             Some((Token::Plus, _)) | Some((Token::Minus, _)) => Some(Precedence::Sum),
             Some((Token::Multiply, _)) | Some((Token::Divide, _)) | Some((Token::Modulo, _)) => {
                 Some(Precedence::Product)
@@ -883,6 +889,26 @@ impl Parser {
                 self.advance();
                 BinOp::LOr
             }
+            Some((Token::BitAnd, _)) => {
+                self.advance();
+                BinOp::BAnd
+            }
+            Some((Token::BitOr, _)) => {
+                self.advance();
+                BinOp::BOr
+            }
+            Some((Token::Caret, _)) => {
+                self.advance();
+                BinOp::BXor
+            }
+            Some((Token::Shl, _)) => {
+                self.advance();
+                BinOp::Shl
+            }
+            Some((Token::Shr, _)) => {
+                self.advance();
+                BinOp::Shr
+            }
             _ => {
                 return Err(ParseError {
                     kind: ParseErrorKind::UnexpectedToken {
@@ -941,6 +967,14 @@ impl Parser {
                 let expression = Box::new(self.parse_postfix_expression()?);
                 ExprKind::UnaryExpr {
                     op: crate::parser::ast::UnaryOp::Neg,
+                    expression,
+                }
+            }
+            Some((Token::Tilde, _)) => {
+                self.advance(); // consume '~'
+                let expression = Box::new(self.parse_postfix_expression()?);
+                ExprKind::UnaryExpr {
+                    op: crate::parser::ast::UnaryOp::BNot,
                     expression,
                 }
             }
@@ -1905,6 +1939,42 @@ mod tests {
                 _ => panic!("expected block body for main"),
             },
             _ => panic!("expected FuncDecl"),
+        }
+    }
+
+    #[test]
+    fn test_bitwise_ops_parse() {
+        let sources = [
+            "int main() { return 12 & 10; }",
+            "int main() { return 12 | 10; }",
+            "int main() { return 12 ^ 10; }",
+            "int main() { return 12 << 1; }",
+            "int main() { return 12 >> 1; }",
+            "int main() { return ~5; }",
+        ];
+        for src in sources.iter() {
+            parse_source(src).unwrap_or_else(|e| panic!("failed to parse {:?}: {:?}", src, e));
+        }
+    }
+
+    #[test]
+    fn test_bitwise_above_comparison_precedence() {
+        // a & b == c should parse as (a & b) == c (Rust precedence), not a & (b == c) (C).
+        let program = parse_source("int main() { return 12 & 10 == 8; }").unwrap();
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => match &body.kind {
+                ExprKind::BlockExpr { statements, .. } => match &statements[0].kind {
+                    StmtKind::ReturnStmt(Some(expr)) => match &expr.kind {
+                        ExprKind::BinaryExpr { op: BinOp::Eq, left, .. } => {
+                            assert!(matches!(left.kind, ExprKind::BinaryExpr { op: BinOp::BAnd, .. }));
+                        }
+                        other => panic!("expected Eq at top, got {:?}", other),
+                    },
+                    _ => panic!(),
+                },
+                _ => panic!(),
+            },
+            _ => panic!(),
         }
     }
 }

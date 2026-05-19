@@ -934,6 +934,9 @@ impl<'ctx> CodeGen<'ctx> {
                     .map(|v| v.into())
                     .map_err(|e| format!("Failed to build or: {}", e))
             }
+            BinOp::BAnd | BinOp::BOr | BinOp::BXor | BinOp::Shl | BinOp::Shr => {
+                Err("bitwise op codegen not yet implemented".to_string())
+            }
         }
     }
 

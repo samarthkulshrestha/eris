@@ -433,6 +433,9 @@ impl Analyzer {
                         }
                         Some(TypeKind::Bool)
                     }
+                    BinOp::BAnd | BinOp::BOr | BinOp::BXor | BinOp::Shl | BinOp::Shr => {
+                        todo!("bitwise op analyzer arm lands in next commit")
+                    }
                     BinOp::LAnd | BinOp::LOr => {
                         if let Some(a) = &left_type {
                             if *a != TypeKind::Bool {

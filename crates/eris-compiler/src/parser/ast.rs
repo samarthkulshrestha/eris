@@ -154,9 +154,12 @@ pub enum BinOp {
     Mul,
     Div,
     Rem,
-    // And,
-    // Or,
-    // Xor,
+    // Bitwise
+    BAnd,
+    BOr,
+    BXor,
+    Shl,
+    Shr,
     LAnd,
     LOr,
     Eq,
@@ -165,10 +168,6 @@ pub enum BinOp {
     Gt,
     Le,
     Ge,
-    // Shl,
-    // Shr,
-    // Comma,
-    // Assign,
 }
 
 #[derive(Ord, Eq, PartialEq, PartialOrd, Debug)]
@@ -176,12 +175,18 @@ pub enum Precedence {
     Lowest = 0,
     LogicalOr,  // ||
     LogicalAnd, // &&
-    Equality,   // == or !=
-    Comparison, // <, <=, >, >=
-    Sum,        // + or -
-    Product,    // * or /
+    Equality,   // == !=
+    Comparison, // < <= > >=
+    // Bitwise ops sit above comparisons (Rust-style), not below them (C-style),
+    // so `a & b == c` parses as `(a & b) == c`. This avoids the C precedence footgun.
+    BitOr,      // |
+    BitXor,     // ^
+    BitAnd,     // &
+    Shift,      // << >>
+    Sum,        // + -
+    Product,    // * / %
     Group,      // ( )
-    Prefix,     // -X or !X
+    Prefix,     // -X !X ~X
 }
 
 impl Add<i32> for Precedence {
@@ -197,10 +202,14 @@ impl Add<i32> for Precedence {
             2 => Precedence::LogicalAnd,
             3 => Precedence::Equality,
             4 => Precedence::Comparison,
-            5 => Precedence::Sum,
-            6 => Precedence::Product,
-            7 => Precedence::Group,
-            8 => Precedence::Prefix,
+            5 => Precedence::BitOr,
+            6 => Precedence::BitXor,
+            7 => Precedence::BitAnd,
+            8 => Precedence::Shift,
+            9 => Precedence::Sum,
+            10 => Precedence::Product,
+            11 => Precedence::Group,
+            12 => Precedence::Prefix,
             _ => Precedence::Prefix,
         }
     }
