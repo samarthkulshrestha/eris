@@ -371,6 +371,46 @@ impl<'ctx> CodeGen<'ctx> {
         }
     }
 
+    /// Return a pointer to a place expression without loading through it.
+    fn take_reference(&mut self, place: &Expr) -> Result<BasicValueEnum<'ctx>, String> {
+        match &place.kind {
+            ExprKind::IdentExpr(ident) => {
+                let (ptr, _ty) = self
+                    .variables
+                    .get(&ident.name)
+                    .ok_or_else(|| format!("Undefined variable: {}", ident.name))?
+                    .clone();
+                Ok(ptr.into())
+            }
+            ExprKind::ArrayIndex { array, index } => {
+                let (alloca_ptr, arr_basic_ty) = self.array_ptr_and_type(array)?;
+                let arr_ty = arr_basic_ty.into_array_type();
+                let idx_val = self.generate_expression(index)?.into_int_value();
+                let i64_ty = self.context.i64_type();
+                let zero = i64_ty.const_int(0, false);
+                let elem_ptr = unsafe {
+                    self.builder
+                        .build_in_bounds_gep(
+                            arr_ty,
+                            alloca_ptr,
+                            &[zero, idx_val],
+                            "takeref.idx",
+                        )
+                        .map_err(|e| format!("Failed to GEP for take-ref of array index: {}", e))?
+                };
+                Ok(elem_ptr.into())
+            }
+            ExprKind::Deref(inner) => {
+                // &(*r) is just r — no extra load/store needed.
+                self.generate_expression(inner)
+            }
+            _ => Err(
+                "take-reference target must be a variable, array index, or dereference"
+                    .to_string(),
+            ),
+        }
+    }
+
     /// Map Eris types to LLVM types
     fn get_llvm_type(&self, type_kind: &TypeKind) -> BasicTypeEnum<'ctx> {
         match type_kind {
@@ -384,7 +424,9 @@ impl<'ctx> CodeGen<'ctx> {
                 elem_ty.array_type(*size as u32).into()
             }
             TypeKind::Ref { .. } => {
-                todo!("reference codegen not yet implemented")
+                // LLVM 17 uses opaque pointers; the pointee type is carried at use sites
+                // (load/store/GEP) rather than encoded in the pointer type itself.
+                self.context.ptr_type(inkwell::AddressSpace::default()).into()
             }
         }
     }
@@ -670,6 +712,15 @@ impl<'ctx> CodeGen<'ctx> {
                     .map_err(|e| format!("Failed to store array element: {}", e))?;
                 Ok(())
             }
+            ExprKind::Deref(inner) => {
+                let ptr_val = self.generate_expression(inner)?;
+                let ptr = ptr_val.into_pointer_value();
+                let value_result = self.generate_expression(value)?;
+                self.builder
+                    .build_store(ptr, value_result)
+                    .map_err(|e| format!("Failed to store through reference: {}", e))?;
+                Ok(())
+            }
             _ => Err("Assignment target must be a variable or array index".to_string()),
         }
     }
@@ -791,11 +842,18 @@ impl<'ctx> CodeGen<'ctx> {
                     .build_load(elem_ty, elem_ptr, "arr.idx.val")
                     .map_err(|e| format!("Failed to load array element: {}", e))
             }
-            ExprKind::TakeRef { .. } => {
-                todo!("reference codegen not yet implemented")
+            ExprKind::TakeRef { place, .. } => {
+                self.take_reference(place)
             }
-            ExprKind::Deref(_) => {
-                todo!("reference codegen not yet implemented")
+            ExprKind::Deref(inner) => {
+                let ptr_val = self.generate_expression(inner)?;
+                let ptr = ptr_val.into_pointer_value();
+                // Codegen does not track AST types end-to-end, so the load type is
+                // assumed to be i64 (Eris `int`). Non-int refs are unsupported here.
+                let load_ty = self.context.i64_type();
+                self.builder
+                    .build_load(load_ty, ptr, "deref")
+                    .map_err(|e| format!("Failed to load through reference: {}", e))
             }
             _ => Err(format!("Unsupported expression: {:?}", expr.kind)),
         }
@@ -1513,5 +1571,48 @@ mod tests {
         // Should compile cleanly. The statement `i = i + 100` after `break` should
         // not generate a store at all (it's unreachable).
         assert!(!ir.contains("add i64 %i, 100"), "unreachable add should not be emitted");
+    }
+
+    #[test]
+    fn ir_take_ref_returns_alloca_pointer() {
+        let ir = compile_to_ir(
+            "int main() {
+                mut int x := 5;
+                &mut int p := &mut x;
+                return *p;
+            }",
+        );
+        // We expect a pointer alloca for p, and a load through it.
+        assert!(ir.contains("alloca ptr"), "expected ptr alloca for ref variable: {}", ir);
+        assert!(ir.contains("load i64, ptr"), "expected load i64 through ref: {}", ir);
+    }
+
+    #[test]
+    fn ir_deref_assignment_stores_through_pointer() {
+        let ir = compile_to_ir(
+            "int main() {
+                mut int x := 5;
+                &mut int p := &mut x;
+                *p = 99;
+                return x;
+            }",
+        );
+        // The *p = 99 should produce a store through the pointer held by p.
+        assert!(ir.contains("store i64 99"), "expected store i64 99 through ref: {}", ir);
+    }
+
+    #[test]
+    fn ir_reference_parameter_is_pointer() {
+        let ir = compile_to_ir(
+            "int increment(&mut int n) {
+                *n = *n + 1;
+                return *n;
+            }
+            int main() {
+                mut int x := 5;
+                return increment(&mut x);
+            }",
+        );
+        assert!(ir.contains("define i64 @increment(ptr"), "expected ptr parameter: {}", ir);
     }
 }
