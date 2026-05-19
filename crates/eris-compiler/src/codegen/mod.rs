@@ -447,6 +447,7 @@ impl<'ctx> CodeGen<'ctx> {
 
                 let cond_block = self.context.append_basic_block(parent_fn, "for.cond");
                 let body_block = self.context.append_basic_block(parent_fn, "for.body");
+                let inc_block = self.context.append_basic_block(parent_fn, "for.inc");
                 let after_block = self.context.append_basic_block(parent_fn, "for.after");
 
                 self.builder
@@ -479,7 +480,7 @@ impl<'ctx> CodeGen<'ctx> {
                 let saved_variables = self.variables.clone();
                 self.variables
                     .insert(var.name.clone(), (loop_var_alloca, i64_ty.into()));
-                self.loop_stack.push((cond_block, after_block));
+                self.loop_stack.push((inc_block, after_block));
                 self.generate_expression(body)?;
                 self.loop_stack.pop();
                 self.variables = saved_variables;
@@ -490,23 +491,28 @@ impl<'ctx> CodeGen<'ctx> {
                     .and_then(|b| b.get_terminator())
                     .is_none()
                 {
-                    let cur_for_inc = self
-                        .builder
-                        .build_load(i64_ty, loop_var_alloca, "for.iv.next")
-                        .map_err(|e| format!("Failed to load for-loop var (inc): {}", e))?
-                        .into_int_value();
-                    let one = i64_ty.const_int(1, false);
-                    let next = self
-                        .builder
-                        .build_int_add(cur_for_inc, one, "for.inc")
-                        .map_err(|e| format!("Failed to build for-loop increment: {}", e))?;
                     self.builder
-                        .build_store(loop_var_alloca, next)
-                        .map_err(|e| format!("Failed to store for-loop increment: {}", e))?;
-                    self.builder
-                        .build_unconditional_branch(cond_block)
-                        .map_err(|e| format!("Failed to back-branch for-loop: {}", e))?;
+                        .build_unconditional_branch(inc_block)
+                        .map_err(|e| format!("Failed to branch from for.body to for.inc: {}", e))?;
                 }
+
+                self.builder.position_at_end(inc_block);
+                let cur_for_inc = self
+                    .builder
+                    .build_load(i64_ty, loop_var_alloca, "for.iv.next")
+                    .map_err(|e| format!("Failed to load for-loop var (inc): {}", e))?
+                    .into_int_value();
+                let one = i64_ty.const_int(1, false);
+                let next = self
+                    .builder
+                    .build_int_add(cur_for_inc, one, "for.inc")
+                    .map_err(|e| format!("Failed to build for-loop increment: {}", e))?;
+                self.builder
+                    .build_store(loop_var_alloca, next)
+                    .map_err(|e| format!("Failed to store for-loop increment: {}", e))?;
+                self.builder
+                    .build_unconditional_branch(cond_block)
+                    .map_err(|e| format!("Failed to back-branch for-loop: {}", e))?;
 
                 self.builder.position_at_end(after_block);
             }
@@ -1217,6 +1223,22 @@ mod tests {
         assert!(ir.contains("for.cond"));
         assert!(ir.contains("for.after"));
         assert!(ir.contains("br label %for.after"));
+    }
+
+    #[test]
+    fn ir_continue_inside_for_in_advances_iteration_variable() {
+        let ir = compile_to_ir(
+            "int main() {
+                mut int sum := 0;
+                for i in 0..10 {
+                    if i == 3 { continue; }
+                    sum = sum + i;
+                }
+                return sum;
+            }",
+        );
+        assert!(ir.contains("for.inc"), "expected for.inc block label");
+        assert!(ir.contains("br label %for.inc"), "expected continue to branch to for.inc");
     }
 
     #[test]
