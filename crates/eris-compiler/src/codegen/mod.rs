@@ -345,6 +345,32 @@ impl<'ctx> CodeGen<'ctx> {
         Ok(function)
     }
 
+    /// Resolve an expression to the alloca and LLVM array type of an array variable.
+    fn array_ptr_and_type(
+        &self,
+        expr: &Expr,
+    ) -> Result<(PointerValue<'ctx>, BasicTypeEnum<'ctx>), String> {
+        match &expr.kind {
+            ExprKind::IdentExpr(ident) => {
+                let (ptr, ty) = self
+                    .variables
+                    .get(&ident.name)
+                    .ok_or_else(|| format!("Undefined variable: {}", ident.name))?
+                    .clone();
+                if !ty.is_array_type() {
+                    return Err(format!(
+                        "expected array variable '{}' in indexing position",
+                        ident.name
+                    ));
+                }
+                Ok((ptr, ty))
+            }
+            _ => Err(
+                "array indexing is only supported on identifier expressions".to_string(),
+            ),
+        }
+    }
+
     /// Map Eris types to LLVM types
     fn get_llvm_type(&self, type_kind: &TypeKind) -> BasicTypeEnum<'ctx> {
         match type_kind {
@@ -353,9 +379,9 @@ impl<'ctx> CodeGen<'ctx> {
             TypeKind::Bool => self.context.bool_type().into(),
             TypeKind::Char => self.context.i8_type().into(),
             TypeKind::Str => self.context.ptr_type(inkwell::AddressSpace::default()).into(),
-            TypeKind::Array { element: _, size: _ } => {
-                // Arrays are represented as pointers
-                self.context.ptr_type(inkwell::AddressSpace::default()).into()
+            TypeKind::Array { element, size } => {
+                let elem_ty = self.get_llvm_type(element);
+                elem_ty.array_type(*size as u32).into()
             }
         }
     }
@@ -606,18 +632,42 @@ impl<'ctx> CodeGen<'ctx> {
 
     /// Generate code for assignment
     fn generate_assignment(&mut self, target: &Expr, value: &Expr) -> Result<(), String> {
-        if let ExprKind::IdentExpr(ident) = &target.kind {
-            let (var_ptr, _var_type) = self.variables.get(&ident.name)
-                .ok_or_else(|| format!("Undefined variable: {}", ident.name))?
-                .clone();
-
-            let value_result = self.generate_expression(value)?;
-            self.builder.build_store(var_ptr, value_result)
-                .map_err(|e| format!("Failed to store assignment: {}", e))?;
-
-            Ok(())
-        } else {
-            Err("Assignment target must be a variable".to_string())
+        match &target.kind {
+            ExprKind::IdentExpr(ident) => {
+                let (var_ptr, _var_type) = self
+                    .variables
+                    .get(&ident.name)
+                    .ok_or_else(|| format!("Undefined variable: {}", ident.name))?
+                    .clone();
+                let value_result = self.generate_expression(value)?;
+                self.builder
+                    .build_store(var_ptr, value_result)
+                    .map_err(|e| format!("Failed to store assignment: {}", e))?;
+                Ok(())
+            }
+            ExprKind::ArrayIndex { array, index } => {
+                let (alloca_ptr, arr_basic_ty) = self.array_ptr_and_type(array)?;
+                let arr_ty = arr_basic_ty.into_array_type();
+                let idx_val = self.generate_expression(index)?.into_int_value();
+                let i64_ty = self.context.i64_type();
+                let zero = i64_ty.const_int(0, false);
+                let elem_ptr = unsafe {
+                    self.builder
+                        .build_in_bounds_gep(
+                            arr_ty,
+                            alloca_ptr,
+                            &[zero, idx_val],
+                            "arr.assign.gep",
+                        )
+                        .map_err(|e| format!("Failed to GEP for array assignment: {}", e))?
+                };
+                let value_result = self.generate_expression(value)?;
+                self.builder
+                    .build_store(elem_ptr, value_result)
+                    .map_err(|e| format!("Failed to store array element: {}", e))?;
+                Ok(())
+            }
+            _ => Err("Assignment target must be a variable or array index".to_string()),
         }
     }
 
@@ -684,8 +734,59 @@ impl<'ctx> CodeGen<'ctx> {
             ExprKind::ParenExpr(inner) => {
                 self.generate_expression(inner)
             }
-            ExprKind::ArrayIndex { .. } => {
-                todo!("array indexing codegen not yet implemented")
+            ExprKind::ArrayLit(elements) => {
+                if elements.is_empty() {
+                    return Err("empty array literals are not supported".to_string());
+                }
+                let first_val = self.generate_expression(&elements[0])?;
+                let elem_ty = first_val.get_type();
+                let arr_ty = elem_ty.array_type(elements.len() as u32);
+
+                let alloca = self
+                    .builder
+                    .build_alloca(arr_ty, "arr.lit")
+                    .map_err(|e| format!("Failed to alloca array: {}", e))?;
+
+                let i64_ty = self.context.i64_type();
+                let zero = i64_ty.const_int(0, false);
+                for (i, element) in elements.iter().enumerate() {
+                    let value = if i == 0 {
+                        first_val
+                    } else {
+                        self.generate_expression(element)?
+                    };
+                    let idx = i64_ty.const_int(i as u64, false);
+                    let elem_ptr = unsafe {
+                        self.builder
+                            .build_in_bounds_gep(arr_ty, alloca, &[zero, idx], "arr.lit.gep")
+                            .map_err(|e| format!("Failed to GEP for array literal: {}", e))?
+                    };
+                    self.builder
+                        .build_store(elem_ptr, value)
+                        .map_err(|e| format!("Failed to store array element: {}", e))?;
+                }
+
+                let loaded = self
+                    .builder
+                    .build_load(arr_ty, alloca, "arr.lit.val")
+                    .map_err(|e| format!("Failed to load array literal: {}", e))?;
+                Ok(loaded)
+            }
+            ExprKind::ArrayIndex { array, index } => {
+                let (alloca_ptr, arr_basic_ty) = self.array_ptr_and_type(array)?;
+                let arr_ty = arr_basic_ty.into_array_type();
+                let elem_ty = arr_ty.get_element_type();
+                let idx_val = self.generate_expression(index)?.into_int_value();
+                let i64_ty = self.context.i64_type();
+                let zero = i64_ty.const_int(0, false);
+                let elem_ptr = unsafe {
+                    self.builder
+                        .build_in_bounds_gep(arr_ty, alloca_ptr, &[zero, idx_val], "arr.idx")
+                        .map_err(|e| format!("Failed to GEP for array index: {}", e))?
+                };
+                self.builder
+                    .build_load(elem_ty, elem_ptr, "arr.idx.val")
+                    .map_err(|e| format!("Failed to load array element: {}", e))
             }
             _ => Err(format!("Unsupported expression: {:?}", expr.kind)),
         }
@@ -871,6 +972,22 @@ impl<'ctx> CodeGen<'ctx> {
         function: &Identifier,
         arguments: &[Expr],
     ) -> Result<BasicValueEnum<'ctx>, String> {
+        if function.name == "len" && arguments.len() == 1 {
+            if let ExprKind::IdentExpr(ident) = &arguments[0].kind {
+                if let Some((_, ty)) = self.variables.get(&ident.name).cloned() {
+                    if ty.is_array_type() {
+                        let size = ty.into_array_type().len();
+                        return Ok(self
+                            .context
+                            .i64_type()
+                            .const_int(size as u64, false)
+                            .into());
+                    }
+                }
+            }
+            return Err("len() in codegen only supports identifier args to array variables".to_string());
+        }
+
         let func = self.functions.get(&function.name)
             .ok_or_else(|| format!("Undefined function: {}", function.name))?
             .clone();
@@ -1242,6 +1359,43 @@ mod tests {
         );
         assert!(ir.contains("for.inc"), "expected for.inc block label");
         assert!(ir.contains("br label %for.inc"), "expected continue to branch to for.inc");
+    }
+
+    #[test]
+    fn ir_emits_array_literal_with_stores() {
+        let ir = compile_to_ir(
+            "int main() {
+                arr[int] a := [10, 20, 30];
+                return a[1];
+            }",
+        );
+        assert!(ir.contains("[3 x i64]"), "expected stack-allocated [3 x i64]");
+        assert!(ir.contains("getelementptr"), "expected GEP for indexing");
+    }
+
+    #[test]
+    fn ir_emits_array_element_assignment() {
+        let ir = compile_to_ir(
+            "int main() {
+                mut arr[int] a := [10, 20, 30];
+                a[1] = 99;
+                return a[1];
+            }",
+        );
+        assert!(ir.contains("[3 x i64]"));
+        assert!(ir.contains("store i64 99"));
+    }
+
+    #[test]
+    fn ir_emits_len_as_constant() {
+        let ir = compile_to_ir(
+            "int main() {
+                arr[int] a := [10, 20, 30, 40, 50];
+                return len(a);
+            }",
+        );
+        assert!(!ir.contains("call i64 @len"), "len should not be a runtime call");
+        assert!(ir.contains("ret i64 5"), "expected constant return of 5");
     }
 
     #[test]
