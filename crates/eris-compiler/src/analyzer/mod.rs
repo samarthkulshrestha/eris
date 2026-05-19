@@ -13,6 +13,7 @@ pub struct Analyzer {
     errors: Vec<AnalyzeError>,
     loop_depth: usize,
     current_function_name: Option<String>,
+    current_function_parameters: Option<Vec<String>>,
 }
 
 impl Analyzer {
@@ -22,6 +23,7 @@ impl Analyzer {
             errors: Vec::new(),
             loop_depth: 0,
             current_function_name: None,
+            current_function_parameters: None,
         };
 
         // Register built-in I/O functions
@@ -98,6 +100,13 @@ impl Analyzer {
         None
     }
 
+    fn is_lvalue(expr: &Expr) -> bool {
+        matches!(
+            expr.kind,
+            ExprKind::IdentExpr(_) | ExprKind::ArrayIndex { .. } | ExprKind::Deref(_)
+        )
+    }
+
     fn check_range_endpoint(&mut self, expr: &Expr) {
         if let Some(found) = self.analyze_expression(expr, None) {
             if found != TypeKind::Int {
@@ -166,16 +175,25 @@ impl Analyzer {
                 self.analyze_expression(expr, None);
             }
             StmtKind::Assignment { target, value } => {
-                // Walk through ArrayIndex chains to find the root identifier whose
-                // mutability decides whether the assignment is legal.
-                let mut root = target;
-                while let ExprKind::ArrayIndex { array, .. } = &root.kind {
-                    root = array;
-                }
-                if let ExprKind::IdentExpr(ident) = &root.kind {
-                    if let Some(symbol) = self.find_symbol(&ident.name) {
-                        if let Symbol::Variable { mutable, .. } = symbol {
-                            if !mutable {
+                // Check mutability based on the immediate shape of the target.
+                match &target.kind {
+                    ExprKind::IdentExpr(ident) => {
+                        // Direct variable assignment requires the variable to be mutable.
+                        if let Some(Symbol::Variable { mutable: false, .. }) = self.find_symbol(&ident.name) {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::AssignmentToImmutable(ident.name.clone()),
+                                target.location.clone(),
+                            ));
+                        }
+                    }
+                    ExprKind::ArrayIndex { .. } => {
+                        // Element assignment requires the root array variable to be mutable.
+                        let mut root = target;
+                        while let ExprKind::ArrayIndex { array, .. } = &root.kind {
+                            root = array;
+                        }
+                        if let ExprKind::IdentExpr(ident) = &root.kind {
+                            if let Some(Symbol::Variable { mutable: false, .. }) = self.find_symbol(&ident.name) {
                                 self.errors.push(AnalyzeError::new(
                                     AnalyzeErrorKind::AssignmentToImmutable(ident.name.clone()),
                                     target.location.clone(),
@@ -183,6 +201,22 @@ impl Analyzer {
                             }
                         }
                     }
+                    ExprKind::Deref(inner) => {
+                        // Writing through a reference requires `&mut T`.
+                        let inner_ty = self.analyze_expression(inner, None);
+                        if let Some(TypeKind::Ref { mutable: false, .. }) = &inner_ty {
+                            let name = if let ExprKind::IdentExpr(i) = &inner.kind {
+                                i.name.clone()
+                            } else {
+                                "<deref target>".to_string()
+                            };
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::AssignmentToImmutable(name),
+                                target.location.clone(),
+                            ));
+                        }
+                    }
+                    _ => {}
                 }
 
                 let target_type = self.analyze_expression(target, None);
@@ -208,7 +242,7 @@ impl Analyzer {
             } => {
                 let param_types = parameters
                     .iter()
-                    .map(|(_, t)| t.kind.clone())
+                    .map(|p| p.typ.kind.clone())
                     .collect::<Vec<_>>();
 
                 let symbol = Symbol::Function {
@@ -224,17 +258,21 @@ impl Analyzer {
                     ));
                 }
 
+                let saved_params = self.current_function_parameters.replace(
+                    parameters.iter().map(|p| p.ident.name.clone()).collect()
+                );
+
                 self.enter_scope();
-                for (ident, typ) in parameters {
+                for param in parameters {
                     let param_symbol = Symbol::Variable {
-                        name: ident.name.clone(),
-                        type_kind: typ.kind.clone(),
-                        mutable: false,
+                        name: param.ident.name.clone(),
+                        type_kind: param.typ.kind.clone(),
+                        mutable: param.mutable,
                     };
-                    if let Err(_e) = self.declare(&ident.name, param_symbol) {
+                    if let Err(_e) = self.declare(&param.ident.name, param_symbol) {
                         self.errors.push(AnalyzeError::new(
-                            AnalyzeErrorKind::VariableAlreadyDeclared(ident.name.clone()),
-                            ident.location.clone(),
+                            AnalyzeErrorKind::VariableAlreadyDeclared(param.ident.name.clone()),
+                            param.ident.location.clone(),
                         ));
                     }
                 }
@@ -255,6 +293,7 @@ impl Analyzer {
                 }
 
                 self.exit_scope();
+                self.current_function_parameters = saved_params;
             }
             StmtKind::ReturnStmt(expr) => {
                 let expr_type = expr.as_ref().and_then(|e| self.analyze_expression(e, expected_return_type.clone()));
@@ -277,6 +316,27 @@ impl Analyzer {
                             },
                             statement.location.clone(),
                         ));
+                    }
+                }
+
+                // Reject returning a reference to a local variable; a reference
+                // to a parameter is safe because the caller owns that storage.
+                if let Some(TypeKind::Ref { .. }) = &expected_return_type {
+                    if let Some(ret_expr) = expr {
+                        if let ExprKind::TakeRef { place, .. } = &ret_expr.kind {
+                            if let ExprKind::IdentExpr(ident) = &place.kind {
+                                let is_param = self.current_function_parameters
+                                    .as_ref()
+                                    .map(|params| params.iter().any(|p| p == &ident.name))
+                                    .unwrap_or(false);
+                                if !is_param {
+                                    self.errors.push(AnalyzeError::new(
+                                        AnalyzeErrorKind::ReturnsLocalReference,
+                                        ret_expr.location.clone(),
+                                    ));
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -668,11 +728,58 @@ impl Analyzer {
                     }
                 }
             }
-            ExprKind::TakeRef { .. } => {
-                todo!("reference analysis not yet implemented")
+            ExprKind::TakeRef { mutable, place } => {
+                if !Self::is_lvalue(place) {
+                    self.errors.push(AnalyzeError::new(
+                        AnalyzeErrorKind::TakeRefOfNonLvalue,
+                        place.location.clone(),
+                    ));
+                }
+
+                if *mutable {
+                    // Walk to the root identifier through array indexing; check that
+                    // the variable is declared mutable before allowing a mutable ref.
+                    let mut root = place.as_ref();
+                    while let ExprKind::ArrayIndex { array, .. } = &root.kind {
+                        root = array;
+                    }
+                    if let ExprKind::IdentExpr(ident) = &root.kind {
+                        if let Some(symbol) = self.find_symbol(&ident.name) {
+                            if let Symbol::Variable { mutable: var_mut, .. } = symbol {
+                                if !var_mut {
+                                    self.errors.push(AnalyzeError::new(
+                                        AnalyzeErrorKind::TakeMutRefOfImmutable {
+                                            name: ident.name.clone(),
+                                        },
+                                        place.location.clone(),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let inner_ty = self.analyze_expression(place, None)?;
+                Some(TypeKind::Ref {
+                    inner: Box::new(inner_ty),
+                    mutable: *mutable,
+                })
             }
-            ExprKind::Deref(_) => {
-                todo!("reference analysis not yet implemented")
+            ExprKind::Deref(inner) => {
+                let inner_ty = self.analyze_expression(inner, None);
+                match inner_ty {
+                    Some(TypeKind::Ref { inner: pointee, .. }) => Some(*pointee),
+                    Some(found) => {
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::DerefOfNonReference {
+                                found: found.clone(),
+                            },
+                            inner.location.clone(),
+                        ));
+                        None
+                    }
+                    None => None,
+                }
             }
             ExprKind::ArrayIndex { array, index } => {
                 let array_ty = self.analyze_expression(array, None);
@@ -805,6 +912,109 @@ mod tests {
         let program = parser.parse_program().unwrap();
         let mut analyzer = Analyzer::new();
         analyzer.analyze_program(&program)
+    }
+
+    #[test]
+    fn take_ref_of_literal_is_rejected() {
+        let source = r#"
+            int main() {
+                &mut int p := &mut 42;
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::TakeRefOfNonLvalue
+        )));
+    }
+
+    #[test]
+    fn take_mut_ref_of_immutable_is_rejected() {
+        let source = r#"
+            int main() {
+                int x := 5;
+                &mut int p := &mut x;
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::TakeMutRefOfImmutable { ref name } if name == "x"
+        )));
+    }
+
+    #[test]
+    fn deref_of_non_reference_is_rejected() {
+        let source = r#"
+            int main() {
+                int x := 5;
+                return *x;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::DerefOfNonReference { .. }
+        )));
+    }
+
+    #[test]
+    fn returning_reference_to_local_is_rejected() {
+        let source = r#"
+            &int dangling() {
+                int x := 5;
+                return &x;
+            }
+            int main() { return 0; }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::ReturnsLocalReference
+        )));
+    }
+
+    #[test]
+    fn valid_reference_operations_typecheck() {
+        let source = r#"
+            int main() {
+                mut int x := 5;
+                &mut int p := &mut x;
+                *p = 99;
+                return *p;
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn mut_parameter_can_be_assigned() {
+        let source = r#"
+            int reset(mut int n) {
+                n = 0;
+                return n;
+            }
+            int main() { return 0; }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn immutable_parameter_cannot_be_assigned() {
+        let source = r#"
+            int reset(int n) {
+                n = 0;
+                return n;
+            }
+            int main() { return 0; }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::AssignmentToImmutable(ref name) if name == "n"
+        )));
     }
 
     #[test]
@@ -1362,6 +1572,36 @@ mod tests {
         assert!(errors.iter().any(|e| matches!(
             e.kind,
             AnalyzeErrorKind::TypeMismatch { .. }
+        )));
+    }
+
+    #[test]
+    fn deref_assignment_through_mutable_ref_typechecks() {
+        let source = r#"
+            int main() {
+                mut int x := 5;
+                &mut int p := &mut x;
+                *p = 99;
+                return *p;
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn deref_assignment_through_immutable_ref_is_rejected() {
+        let source = r#"
+            int main() {
+                int x := 5;
+                &int p := &x;
+                *p = 99;
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::AssignmentToImmutable(_)
         )));
     }
 

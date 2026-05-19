@@ -35,6 +35,14 @@ pub enum AnalyzeErrorKind {
     IndexNotInteger {
         found: TypeKind,
     },
+    TakeRefOfNonLvalue,
+    TakeMutRefOfImmutable {
+        name: String,
+    },
+    DerefOfNonReference {
+        found: TypeKind,
+    },
+    ReturnsLocalReference,
 }
 
 impl AnalyzeError {
@@ -167,6 +175,34 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
                     fields,
                 )
             }
+            AnalyzeErrorKind::TakeRefOfNonLvalue => (
+                ErrorCode::E0223,
+                "cannot take a reference to a temporary value".to_string(),
+                Map::new(),
+            ),
+            AnalyzeErrorKind::TakeMutRefOfImmutable { name } => {
+                let mut fields = Map::new();
+                fields.insert("name".to_string(), Value::String(name.clone()));
+                (
+                    ErrorCode::E0224,
+                    format!("cannot take a mutable reference to immutable variable '{}'", name),
+                    fields,
+                )
+            }
+            AnalyzeErrorKind::DerefOfNonReference { found } => {
+                let mut fields = Map::new();
+                fields.insert("found".to_string(), Value::String(found.to_string()));
+                (
+                    ErrorCode::E0225,
+                    format!("cannot dereference value of type '{}'", found),
+                    fields,
+                )
+            }
+            AnalyzeErrorKind::ReturnsLocalReference => (
+                ErrorCode::E0226,
+                "function returns a reference to one of its own local variables".to_string(),
+                Map::new(),
+            ),
         };
 
         Diagnostic {
@@ -197,6 +233,10 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::NonIterableInForLoop { .. } => "non-iterable in for-in",
             AnalyzeErrorKind::IndexOutOfRange { .. } => "index out of range",
             AnalyzeErrorKind::IndexNotInteger { .. } => "non-integer array index",
+            AnalyzeErrorKind::TakeRefOfNonLvalue => "take-reference of non-lvalue",
+            AnalyzeErrorKind::TakeMutRefOfImmutable { .. } => "mutable reference to immutable",
+            AnalyzeErrorKind::DerefOfNonReference { .. } => "dereference of non-reference",
+            AnalyzeErrorKind::ReturnsLocalReference => "returns reference to local",
         }
     }
 
@@ -237,6 +277,18 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::IndexNotInteger { found } => {
                 format!("array indices must be of type 'int', found '{}'", found)
             }
+            AnalyzeErrorKind::TakeRefOfNonLvalue => {
+                "Cannot take a reference to a temporary value; references must be to named storage".to_string()
+            }
+            AnalyzeErrorKind::TakeMutRefOfImmutable { name } => {
+                format!("Cannot take a mutable reference to '{}' because it is not declared with 'mut'", name)
+            }
+            AnalyzeErrorKind::DerefOfNonReference { found } => {
+                format!("The '*' operator requires a reference; got '{}'", found)
+            }
+            AnalyzeErrorKind::ReturnsLocalReference => {
+                "Returning a reference to a local variable would leave a dangling pointer after the function returns".to_string()
+            }
         }
     }
 
@@ -275,6 +327,18 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::IndexNotInteger { .. } => {
                 Some("convert the index expression to 'int' before indexing".to_string())
+            }
+            AnalyzeErrorKind::TakeRefOfNonLvalue => {
+                Some("introduce a named variable first, then take a reference to it".to_string())
+            }
+            AnalyzeErrorKind::TakeMutRefOfImmutable { name } => {
+                Some(format!("declare '{}' with 'mut' to allow mutable references", name))
+            }
+            AnalyzeErrorKind::DerefOfNonReference { .. } => {
+                Some("take a reference with '&' or '&mut' before dereferencing".to_string())
+            }
+            AnalyzeErrorKind::ReturnsLocalReference => {
+                Some("return the value itself, or pass the destination as a '&mut' parameter".to_string())
             }
             _ => None,
         }

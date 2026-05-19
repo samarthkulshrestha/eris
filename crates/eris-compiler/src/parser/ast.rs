@@ -28,8 +28,7 @@ pub enum StmtKind {
     },
     FuncDecl {
         name: Identifier,
-        // params: Vec<FuncParam>,
-        parameters: Vec<(Identifier, Type)>,
+        parameters: Vec<Param>,
         return_type: Option<Type>,
         body: Expr
     },
@@ -230,4 +229,11 @@ impl Add<i32> for Precedence {
 pub struct Identifier {
     pub name: String,
     pub location: SourceLocation,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Param {
+    pub mutable: bool,
+    pub ident: Identifier,
+    pub typ: Type,
 }

@@ -1,7 +1,7 @@
 use crate::lexer::{LexerError, SourceLocation, Token};
 
 use crate::parser::ast::{
-    BinOp, Expr, ExprKind, Identifier, Precedence, Program, Stmt, StmtKind, Type, TypeKind,
+    BinOp, Expr, ExprKind, Identifier, Param, Precedence, Program, Stmt, StmtKind, Type, TypeKind,
 };
 
 #[derive(Debug, Clone)]
@@ -342,9 +342,9 @@ impl Parser {
             }
 
             Some((Token::BitAnd, _)) => {
-                // `&` followed by a type-start token begins a reference-type variable
-                // declaration (`&int x := ...`, `&mut int x := ...`). Anything else is a
-                // bare take-reference expression statement (`&x;`).
+                // `&T name(...)` is a function declaration returning a reference type.
+                // `&T name := ...` is a variable declaration.
+                // `&expr` is a bare take-reference expression statement.
                 let saved_token = self.current_token.clone();
                 let saved_pos = self.pos;
                 self.advance(); // consume '&' to peek at what follows
@@ -358,15 +358,39 @@ impl Parser {
                     Token::Arr,
                     Token::BitAnd,
                 ]);
-                self.current_token = saved_token;
+                self.current_token = saved_token.clone();
                 self.pos = saved_pos;
 
                 if next_is_type_start {
-                    return self.parse_variable_declarations();
+                    // Parse the full return type to determine whether an ident
+                    // followed by `(` follows — that means function declaration.
+                    let saved_token2 = self.current_token.clone();
+                    let saved_pos2 = self.pos;
+                    let _ref_ty = self.parse_type()?;
+                    let is_func = self.current_is(&[Token::Ident(String::new())])
+                        && {
+                            // peek past ident
+                            let ident_saved = self.current_token.clone();
+                            let ident_pos = self.pos;
+                            self.advance();
+                            let next_lparen = self.current_is(&[Token::LParen]);
+                            self.current_token = ident_saved;
+                            self.pos = ident_pos;
+                            next_lparen
+                        };
+                    self.current_token = saved_token2;
+                    self.pos = saved_pos2;
+
+                    if is_func {
+                        self.parse_function_declaration()?.kind
+                    } else {
+                        return self.parse_variable_declarations();
+                    }
+                } else {
+                    let expr = self.parse_expression()?;
+                    self.expect_statement_terminator(&expr)?;
+                    StmtKind::ExprStmt(expr)
                 }
-                let expr = self.parse_expression()?;
-                self.expect_statement_terminator(&expr)?;
-                StmtKind::ExprStmt(expr)
             }
 
             Some((Token::Ident(_name), _)) => {
@@ -477,10 +501,19 @@ impl Parser {
             }
 
             Some((_, _loc)) => {
-                // Try to parse it as an expression statement
+                // Try to parse it as an expression statement or deref assignment (*r = v).
                 let expr = self.parse_expression()?;
-                self.expect_statement_terminator(&expr)?;
-                StmtKind::ExprStmt(expr)
+                if self.current_is(&[Token::Assign])
+                    && matches!(expr.kind, ExprKind::Deref(_))
+                {
+                    self.advance(); // consume '='
+                    let value = self.parse_expression()?;
+                    self.expect_statement_terminator(&value)?;
+                    StmtKind::Assignment { target: expr, value }
+                } else {
+                    self.expect_statement_terminator(&expr)?;
+                    StmtKind::ExprStmt(expr)
+                }
             }
 
             None => {
@@ -671,7 +704,7 @@ impl Parser {
             .map(|(_, l)| l.clone())
             .unwrap_or_default();
         // Parse return type (if any)
-        let return_type = if self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str, Token::Arr]) {
+        let return_type = if self.current_is(&[Token::Int, Token::Bool, Token::Float, Token::Char, Token::Str, Token::Arr, Token::BitAnd]) {
             Some(self.parse_type()?)
         } else {
             None
@@ -699,6 +732,14 @@ impl Parser {
 
         if !self.current_is(&[Token::RParen]) {
             loop {
+                // Optional `mut` before parameter type
+                let mutable = if self.current_is(&[Token::Mut]) {
+                    self.advance();
+                    true
+                } else {
+                    false
+                };
+
                 // Parse parameter type
                 let param_type = self.parse_type()?;
 
@@ -709,7 +750,7 @@ impl Parser {
                         location: loc.clone(),
                     };
                     self.advance();
-                    parameters.push((param_name, param_type));
+                    parameters.push(Param { mutable, ident: param_name, typ: param_type });
                 } else {
                     return Err(ParseError {
                         kind: ParseErrorKind::UnexpectedToken {

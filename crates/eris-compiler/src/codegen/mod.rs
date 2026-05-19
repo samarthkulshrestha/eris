@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::parser::ast::{
-    BinOp, Expr, ExprKind, Identifier, Program, Stmt, StmtKind, TypeKind, UnaryOp,
+    BinOp, Expr, ExprKind, Identifier, Param, Program, Stmt, StmtKind, TypeKind, UnaryOp,
 };
 
 pub struct CodeGen<'ctx> {
@@ -316,13 +316,13 @@ impl<'ctx> CodeGen<'ctx> {
     fn declare_function(
         &mut self,
         name: &Identifier,
-        parameters: &[(Identifier, crate::parser::ast::Type)],
+        parameters: &[Param],
         return_type: Option<&crate::parser::ast::Type>,
     ) -> Result<FunctionValue<'ctx>, String> {
         // Build parameter types
         let param_types: Vec<BasicMetadataTypeEnum> = parameters
             .iter()
-            .map(|(_, typ)| self.get_llvm_type(&typ.kind).into())
+            .map(|p| self.get_llvm_type(&p.typ.kind).into())
             .collect();
 
         // Build function type
@@ -337,8 +337,8 @@ impl<'ctx> CodeGen<'ctx> {
         let function = self.module.add_function(&name.name, fn_type, None);
 
         // Set parameter names
-        for (i, (param_name, _)) in parameters.iter().enumerate() {
-            function.get_nth_param(i as u32).unwrap().set_name(&param_name.name);
+        for (i, param) in parameters.iter().enumerate() {
+            function.get_nth_param(i as u32).unwrap().set_name(&param.ident.name);
         }
 
         self.functions.insert(name.name.clone(), function);
@@ -577,7 +577,7 @@ impl<'ctx> CodeGen<'ctx> {
     fn generate_function(
         &mut self,
         name: &Identifier,
-        parameters: &[(Identifier, crate::parser::ast::Type)],
+        parameters: &[Param],
         _return_type: Option<&crate::parser::ast::Type>,
         body: &Expr,
     ) -> Result<(), String> {
@@ -604,21 +604,21 @@ impl<'ctx> CodeGen<'ctx> {
     fn generate_function_body(
         &mut self,
         function: FunctionValue<'ctx>,
-        parameters: &[(Identifier, crate::parser::ast::Type)],
+        parameters: &[Param],
         body: &Expr,
     ) -> Result<(), String> {
         // Allocate and store parameters
-        for (i, (param_name, param_type)) in parameters.iter().enumerate() {
+        for (i, param) in parameters.iter().enumerate() {
             let param_value = function.get_nth_param(i as u32).unwrap();
-            let llvm_type = self.get_llvm_type(&param_type.kind);
+            let llvm_type = self.get_llvm_type(&param.typ.kind);
 
-            let alloca = self.builder.build_alloca(llvm_type, &param_name.name)
+            let alloca = self.builder.build_alloca(llvm_type, &param.ident.name)
                 .map_err(|e| format!("Failed to create parameter alloca: {}", e))?;
 
             self.builder.build_store(alloca, param_value)
                 .map_err(|e| format!("Failed to store parameter: {}", e))?;
 
-            self.variables.insert(param_name.name.clone(), (alloca, llvm_type));
+            self.variables.insert(param.ident.name.clone(), (alloca, llvm_type));
         }
 
         // Generate function body
