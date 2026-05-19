@@ -101,10 +101,13 @@ impl Analyzer {
     }
 
     fn is_lvalue(expr: &Expr) -> bool {
-        matches!(
-            expr.kind,
-            ExprKind::IdentExpr(_) | ExprKind::ArrayIndex { .. } | ExprKind::Deref(_)
-        )
+        match &expr.kind {
+            ExprKind::IdentExpr(_)
+            | ExprKind::ArrayIndex { .. }
+            | ExprKind::Deref(_) => true,
+            ExprKind::ParenExpr(inner) => Self::is_lvalue(inner),
+            _ => false,
+        }
     }
 
     fn check_range_endpoint(&mut self, expr: &Expr) {
@@ -760,6 +763,18 @@ impl Analyzer {
                 }
 
                 let inner_ty = self.analyze_expression(place, None)?;
+                // Restrict references to `int` pointees until codegen tracks pointee types
+                // through the variables map. Non-int references would silently miscompile
+                // against the hardcoded i64 load type in `Deref` lowering.
+                if inner_ty != TypeKind::Int {
+                    self.errors.push(AnalyzeError::new(
+                        AnalyzeErrorKind::TypeMismatch {
+                            expected: TypeKind::Int,
+                            found: inner_ty.clone(),
+                        },
+                        place.location.clone(),
+                    ));
+                }
                 Some(TypeKind::Ref {
                     inner: Box::new(inner_ty),
                     mutable: *mutable,
@@ -768,7 +783,20 @@ impl Analyzer {
             ExprKind::Deref(inner) => {
                 let inner_ty = self.analyze_expression(inner, None);
                 match inner_ty {
-                    Some(TypeKind::Ref { inner: pointee, .. }) => Some(*pointee),
+                    Some(TypeKind::Ref { inner: pointee, .. }) => {
+                        // Mirror the TakeRef gate: only int pointees are safe to lower
+                        // until codegen tracks pointee types end-to-end.
+                        if *pointee != TypeKind::Int {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::TypeMismatch {
+                                    expected: TypeKind::Int,
+                                    found: (*pointee).clone(),
+                                },
+                                inner.location.clone(),
+                            ));
+                        }
+                        Some(*pointee)
+                    }
                     Some(found) => {
                         self.errors.push(AnalyzeError::new(
                             AnalyzeErrorKind::DerefOfNonReference {
@@ -1603,6 +1631,58 @@ mod tests {
             e.kind,
             AnalyzeErrorKind::AssignmentToImmutable(_)
         )));
+    }
+
+    #[test]
+    fn take_ref_of_non_int_is_rejected_for_now() {
+        // Refs to non-int types are deferred to a future slice-based representation.
+        // Currently rejected to avoid codegen miscompilation.
+        let source = r#"
+            int main() {
+                mut bool b := true;
+                &mut bool p := &mut b;
+                return 0;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::TypeMismatch { ref expected, .. } if *expected == TypeKind::Int
+        )));
+    }
+
+    #[test]
+    fn ref_to_ref_is_rejected_for_now() {
+        // Refs to refs would require pointee-type-aware codegen.
+        let source = r#"
+            int main() {
+                mut int x := 5;
+                mut &mut int p := &mut x;
+                &mut &mut int pp := &mut p;
+                return **pp;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::TypeMismatch { ref expected, .. } if *expected == TypeKind::Int
+        )));
+    }
+
+    #[test]
+    fn take_ref_through_parens_typechecks() {
+        let source = r#"
+            int main() {
+                mut int x := 5;
+                &mut int p := &mut (x);
+                *p = 99;
+                return *p;
+            }
+        "#;
+        assert!(
+            analyze_source(source).is_ok(),
+            "ParenExpr should be treated as transparent for lvalue checks"
+        );
     }
 
     #[test]
