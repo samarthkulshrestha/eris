@@ -934,8 +934,41 @@ impl<'ctx> CodeGen<'ctx> {
                     .map(|v| v.into())
                     .map_err(|e| format!("Failed to build or: {}", e))
             }
-            BinOp::BAnd | BinOp::BOr | BinOp::BXor | BinOp::Shl | BinOp::Shr => {
-                Err("bitwise op codegen not yet implemented".to_string())
+            BinOp::BAnd => {
+                self.builder
+                    .build_and(left_val.into_int_value(), right_val.into_int_value(), "and")
+                    .map(|v| v.into())
+                    .map_err(|e| format!("Failed to build and: {}", e))
+            }
+            BinOp::BOr => {
+                self.builder
+                    .build_or(left_val.into_int_value(), right_val.into_int_value(), "or")
+                    .map(|v| v.into())
+                    .map_err(|e| format!("Failed to build or: {}", e))
+            }
+            BinOp::BXor => {
+                self.builder
+                    .build_xor(left_val.into_int_value(), right_val.into_int_value(), "xor")
+                    .map(|v| v.into())
+                    .map_err(|e| format!("Failed to build xor: {}", e))
+            }
+            BinOp::Shl => {
+                self.builder
+                    .build_left_shift(left_val.into_int_value(), right_val.into_int_value(), "shl")
+                    .map(|v| v.into())
+                    .map_err(|e| format!("Failed to build shl: {}", e))
+            }
+            BinOp::Shr => {
+                // Arithmetic (signed) right shift preserves sign for negative `int` values.
+                self.builder
+                    .build_right_shift(
+                        left_val.into_int_value(),
+                        right_val.into_int_value(),
+                        true,
+                        "ashr",
+                    )
+                    .map(|v| v.into())
+                    .map_err(|e| format!("Failed to build ashr: {}", e))
             }
         }
     }
@@ -1413,6 +1446,46 @@ mod tests {
         );
         assert!(!ir.contains("call i64 @len"), "len should not be a runtime call");
         assert!(ir.contains("ret i64 5"), "expected constant return of 5");
+    }
+
+    #[test]
+    fn ir_emits_bitwise_lowering() {
+        // Use variables so inkwell's constant-folder doesn't reduce the expression.
+        let ir = compile_to_ir(
+            "int main() {
+                int a := read_int();
+                int b := read_int();
+                return (a & b) | (a ^ b);
+            }",
+        );
+        assert!(ir.contains(" and i64"), "expected LLVM and: {}", ir);
+        assert!(ir.contains(" or i64"), "expected LLVM or: {}", ir);
+        assert!(ir.contains(" xor i64"), "expected LLVM xor: {}", ir);
+    }
+
+    #[test]
+    fn ir_emits_shift_lowering() {
+        let ir = compile_to_ir(
+            "int main() {
+                int a := read_int();
+                int b := read_int();
+                return (a << b) + (a >> b);
+            }",
+        );
+        assert!(ir.contains(" shl i64"), "expected LLVM shl: {}", ir);
+        assert!(ir.contains(" ashr i64"), "expected arithmetic shift right: {}", ir);
+    }
+
+    #[test]
+    fn ir_bitwise_not_uses_existing_not() {
+        let ir = compile_to_ir(
+            "int main() {
+                int a := read_int();
+                return ~a;
+            }",
+        );
+        // build_not on i64 emits `xor i64 X, -1`.
+        assert!(ir.contains("xor i64"), "expected bitwise NOT lowering: {}", ir);
     }
 
     #[test]

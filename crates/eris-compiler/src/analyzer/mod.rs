@@ -434,7 +434,27 @@ impl Analyzer {
                         Some(TypeKind::Bool)
                     }
                     BinOp::BAnd | BinOp::BOr | BinOp::BXor | BinOp::Shl | BinOp::Shr => {
-                        todo!("bitwise op analyzer arm lands in next commit")
+                        if let (Some(a), Some(b)) = (&left_type, &right_type) {
+                            if *a != TypeKind::Int {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: TypeKind::Int,
+                                        found: a.clone(),
+                                    },
+                                    left.location.clone(),
+                                ));
+                            }
+                            if *b != TypeKind::Int {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::TypeMismatch {
+                                        expected: TypeKind::Int,
+                                        found: b.clone(),
+                                    },
+                                    right.location.clone(),
+                                ));
+                            }
+                        }
+                        Some(TypeKind::Int)
                     }
                     BinOp::LAnd | BinOp::LOr => {
                         if let Some(a) = &left_type {
@@ -1305,6 +1325,38 @@ mod tests {
                 errors
             );
         }
+    }
+
+    #[test]
+    fn bitwise_ops_accept_int_operands() {
+        let source = r#"
+            int main() {
+                int a := 12;
+                int b := 10;
+                int and_v := a & b;
+                int or_v := a | b;
+                int xor_v := a ^ b;
+                int shl_v := a << 1;
+                int shr_v := a >> 1;
+                int not_v := ~a;
+                return and_v + or_v + xor_v + shl_v + shr_v + not_v;
+            }
+        "#;
+        assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn bitwise_ops_reject_bool_operands() {
+        let source = r#"
+            int main() {
+                return true & false;
+            }
+        "#;
+        let errors = analyze_source(source).unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e.kind,
+            AnalyzeErrorKind::TypeMismatch { .. }
+        )));
     }
 
     #[test]
