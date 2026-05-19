@@ -16,7 +16,7 @@ endif
 " `--` of a comment renders as two operators.
 
 " --- Keywords -----------------------------------------------------------
-syn keyword erisKeyword     if else return while break continue mut
+syn keyword erisKeyword     if else return while break continue for in mut
 syn keyword erisType        int float char bool str arr
 syn keyword erisBoolean     true false
 
@@ -33,6 +33,7 @@ syn region erisString       start=+"+ end=+"+ skip=+\\"+
 
 " --- Operators ----------------------------------------------------------
 syn match erisOperator      ":="
+syn match erisOperator      "\.\."
 syn match erisOperator      "[=!<>]="
 syn match erisOperator      "&&\|||"
 syn match erisOperator      "[+\-*/%=<>!]"
