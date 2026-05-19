@@ -747,7 +747,7 @@ impl Parser {
                 self.expect(&[Token::LBracket])?;
                 let element_type = self.parse_type()?;
                 self.expect(&[Token::RBracket])?;
-                TypeKind::Array(Box::new(element_type.kind))
+                TypeKind::Array { element: Box::new(element_type.kind), size: 0 }
             }
             _ => {
                 return Err(ParseError {
@@ -787,7 +787,7 @@ impl Parser {
     }
 
     fn parse_binary_expression(&mut self, precedence: Precedence) -> Result<Expr, ParseError> {
-        let mut left = self.parse_primary_expression()?;
+        let mut left = self.parse_postfix_expression()?;
 
         while let Some(op_precedence) = self.current_binary_operator_precedence() {
             if op_precedence < precedence {
@@ -897,6 +897,29 @@ impl Parser {
         Ok(op)
     }
 
+    fn parse_postfix_expression(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.parse_primary_expression()?;
+        loop {
+            match &self.current_token {
+                Some((Token::LBracket, _)) => {
+                    self.advance(); // consume '['
+                    let index = self.parse_expression()?;
+                    self.expect(&[Token::RBracket])?;
+                    let location = expr.location.clone();
+                    expr = Expr {
+                        kind: ExprKind::ArrayIndex {
+                            array: Box::new(expr),
+                            index: Box::new(index),
+                        },
+                        location,
+                    };
+                }
+                _ => break,
+            }
+        }
+        Ok(expr)
+    }
+
     fn parse_primary_expression(&mut self) -> Result<Expr, ParseError> {
         let location = self
             .current_token
@@ -907,7 +930,7 @@ impl Parser {
             // Handle unary operators (prefix expressions)
             Some((Token::Not, _)) => {
                 self.advance(); // consume '!'
-                let expression = Box::new(self.parse_primary_expression()?);
+                let expression = Box::new(self.parse_postfix_expression()?);
                 ExprKind::UnaryExpr {
                     op: crate::parser::ast::UnaryOp::LNot,
                     expression,
@@ -915,7 +938,7 @@ impl Parser {
             }
             Some((Token::Minus, _)) => {
                 self.advance(); // consume '-'
-                let expression = Box::new(self.parse_primary_expression()?);
+                let expression = Box::new(self.parse_postfix_expression()?);
                 ExprKind::UnaryExpr {
                     op: crate::parser::ast::UnaryOp::Neg,
                     expression,
@@ -1639,7 +1662,7 @@ mod tests {
         match &program.statements[0].kind {
             StmtKind::VarDecl { initializer, typ, .. } => {
                 assert!(matches!(initializer.kind, ExprKind::ArrayLit(_)));
-                assert!(matches!(typ.as_ref().unwrap().kind, TypeKind::Array(_)));
+                assert!(matches!(typ.as_ref().unwrap().kind, TypeKind::Array { .. }));
             }
             _ => panic!("Expected VarDecl"),
         }
@@ -1836,6 +1859,26 @@ mod tests {
                     }
                 }
                 _ => panic!("expected block body for main"),
+            },
+            _ => panic!("expected FuncDecl"),
+        }
+    }
+
+    #[test]
+    fn test_array_index_parses() {
+        let source = "int main() { arr[int] a := [10, 20, 30]; return a[1]; }";
+        let program = parse_source(source).unwrap();
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => match &body.kind {
+                ExprKind::BlockExpr { statements, .. } => {
+                    match &statements[1].kind {
+                        StmtKind::ReturnStmt(Some(expr)) => {
+                            assert!(matches!(expr.kind, ExprKind::ArrayIndex { .. }));
+                        }
+                        other => panic!("expected ReturnStmt with array index, got {:?}", other),
+                    }
+                }
+                _ => panic!("expected block body"),
             },
             _ => panic!("expected FuncDecl"),
         }

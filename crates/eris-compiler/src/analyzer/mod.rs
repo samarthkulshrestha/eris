@@ -137,7 +137,7 @@ impl Analyzer {
 
                 if let Some(var_type) = var_type {
                     if let Some(init_type) = init_type.clone() {
-                        if var_type != init_type {
+                        if !types_compatible(&var_type, &init_type) {
                             self.errors.push(AnalyzeError::new(
                                 AnalyzeErrorKind::TypeMismatch {
                                     expected: var_type.clone(),
@@ -376,7 +376,7 @@ impl Analyzer {
                         }
                     }
 
-                    Some(TypeKind::Array(Box::new(first_type)))
+                    Some(TypeKind::Array { element: Box::new(first_type), size: elements.len() })
                 }
             }
             ExprKind::BoolTrue | ExprKind::BoolFalse => Some(TypeKind::Bool),
@@ -613,8 +613,23 @@ impl Analyzer {
                     }
                 }
             }
+            ExprKind::ArrayIndex { .. } => {
+                todo!("array indexing analysis not yet implemented")
+            }
             _ => None,
         }
+    }
+}
+
+/// Compare two types for assignment/declaration compatibility. Array types are
+/// compatible when their element types match regardless of size, because the
+/// declared annotation carries size 0 until the initializer is analyzed.
+fn types_compatible(a: &TypeKind, b: &TypeKind) -> bool {
+    match (a, b) {
+        (TypeKind::Array { element: ea, .. }, TypeKind::Array { element: eb, .. }) => {
+            types_compatible(ea, eb)
+        }
+        _ => a == b,
     }
 }
 

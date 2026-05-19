@@ -353,7 +353,7 @@ impl<'ctx> CodeGen<'ctx> {
             TypeKind::Bool => self.context.bool_type().into(),
             TypeKind::Char => self.context.i8_type().into(),
             TypeKind::Str => self.context.ptr_type(inkwell::AddressSpace::default()).into(),
-            TypeKind::Array(_inner) => {
+            TypeKind::Array { element: _, size: _ } => {
                 // Arrays are represented as pointers
                 self.context.ptr_type(inkwell::AddressSpace::default()).into()
             }
@@ -683,6 +683,9 @@ impl<'ctx> CodeGen<'ctx> {
             }
             ExprKind::ParenExpr(inner) => {
                 self.generate_expression(inner)
+            }
+            ExprKind::ArrayIndex { .. } => {
+                todo!("array indexing codegen not yet implemented")
             }
             _ => Err(format!("Unsupported expression: {:?}", expr.kind)),
         }

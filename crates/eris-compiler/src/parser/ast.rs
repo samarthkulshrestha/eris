@@ -60,7 +60,10 @@ pub enum TypeKind {
     Char,
     Bool,
     Str,
-    Array(Box<TypeKind>),
+    Array {
+        element: Box<TypeKind>,
+        size: usize,
+    },
 }
 
 impl fmt::Display for TypeKind {
@@ -71,7 +74,13 @@ impl fmt::Display for TypeKind {
             TypeKind::Char => write!(f, "char"),
             TypeKind::Bool => write!(f, "bool"),
             TypeKind::Str => write!(f, "str"),
-            TypeKind::Array(inner) => write!(f, "arr[{}]", inner),
+            TypeKind::Array { element, size } => {
+                if *size == 0 {
+                    write!(f, "arr[{}]", element)
+                } else {
+                    write!(f, "arr[{}; {}]", element, size)
+                }
+            }
         }
     }
 }
@@ -106,6 +115,10 @@ pub enum ExprKind {
     Range {
         start: Box<Expr>,
         end: Box<Expr>,
+    },
+    ArrayIndex {
+        array: Box<Expr>,
+        index: Box<Expr>,
     },
     TupleExpr(Vec<Expr>),
     BlockExpr {
