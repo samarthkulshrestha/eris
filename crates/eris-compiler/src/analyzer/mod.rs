@@ -661,27 +661,29 @@ impl Analyzer {
                 }
 
                 if let Some(TypeKind::Array { size, .. }) = &array_ty {
-                    use crate::parser::ast::UnaryOp;
-                    let literal_index = match &index.kind {
-                        ExprKind::IntLit(n) => Some(*n),
-                        ExprKind::UnaryExpr {
-                            op: UnaryOp::Neg,
-                            expression,
-                        } => match &expression.kind {
-                            ExprKind::IntLit(n) => Some(-(*n)),
+                    if *size > 0 {
+                        use crate::parser::ast::UnaryOp;
+                        let literal_index = match &index.kind {
+                            ExprKind::IntLit(n) => Some(*n),
+                            ExprKind::UnaryExpr {
+                                op: UnaryOp::Neg,
+                                expression,
+                            } => match &expression.kind {
+                                ExprKind::IntLit(n) => Some(-(*n)),
+                                _ => None,
+                            },
                             _ => None,
-                        },
-                        _ => None,
-                    };
-                    if let Some(n) = literal_index {
-                        if n < 0 || (n as usize) >= *size {
-                            self.errors.push(AnalyzeError::new(
-                                AnalyzeErrorKind::IndexOutOfRange {
-                                    array_size: *size,
-                                    index: n,
-                                },
-                                index.location.clone(),
-                            ));
+                        };
+                        if let Some(n) = literal_index {
+                            if n < 0 || (n as usize) >= *size {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::IndexOutOfRange {
+                                        array_size: *size,
+                                        index: n,
+                                    },
+                                    index.location.clone(),
+                                ));
+                            }
                         }
                     }
                 }
@@ -1276,6 +1278,30 @@ mod tests {
             }
         "#;
         assert!(analyze_source(source).is_ok());
+    }
+
+    #[test]
+    fn index_into_size_zero_array_does_not_emit_static_oob() {
+        let source = r#"
+            int first(arr[int] xs) {
+                return xs[0];
+            }
+            int main() {
+                return 0;
+            }
+        "#;
+        let result = analyze_source(source);
+        if let Err(errors) = &result {
+            let has_oob = errors.iter().any(|e| matches!(
+                e.kind,
+                AnalyzeErrorKind::IndexOutOfRange { .. }
+            ));
+            assert!(
+                !has_oob,
+                "expected no static OOB on size-0 (unknown) array type, got {:?}",
+                errors
+            );
+        }
     }
 
     #[test]
