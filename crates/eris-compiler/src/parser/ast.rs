@@ -40,6 +40,11 @@ pub enum StmtKind {
     },
     Break,
     Continue,
+    ForIn {
+        var: Identifier,
+        iterable: Box<Expr>,
+        body: Box<Expr>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -98,6 +103,10 @@ pub enum ExprKind {
         right: Box<Expr>
     },
     ParenExpr(Box<Expr>),
+    Range {
+        start: Box<Expr>,
+        end: Box<Expr>,
+    },
     TupleExpr(Vec<Expr>),
     BlockExpr {
         statements: Vec<Stmt>,

@@ -425,6 +425,29 @@ impl Parser {
                 StmtKind::Continue
             }
 
+            Some((Token::For, _)) => {
+                self.advance(); // consume 'for'
+                let var = self.parse_ident()?;
+                self.expect(&[Token::In])?;
+                let start = self.parse_expression()?;
+                self.expect(&[Token::DotDot])?;
+                let end = self.parse_expression()?;
+                let range_loc = start.location.clone();
+                let iterable = Expr {
+                    kind: ExprKind::Range {
+                        start: Box::new(start),
+                        end: Box::new(end),
+                    },
+                    location: range_loc,
+                };
+                let body = self.parse_block_expression()?;
+                StmtKind::ForIn {
+                    var,
+                    iterable: Box::new(iterable),
+                    body: Box::new(body),
+                }
+            }
+
             Some((_, _loc)) => {
                 // Try to parse it as an expression statement
                 let expr = self.parse_expression()?;
@@ -1791,6 +1814,30 @@ mod tests {
                 assert!(msg.contains("mismatch"));
             },
             _ => panic!("Expected InvalidSyntax error"),
+        }
+    }
+
+    #[test]
+    fn test_for_in_range_parses() {
+        let source = "int main() { for i in 0..5 { } return 0; }";
+        let program = parse_source(source).unwrap();
+        match &program.statements[0].kind {
+            StmtKind::FuncDecl { body, .. } => match &body.kind {
+                ExprKind::BlockExpr { statements, .. } => {
+                    match &statements[0].kind {
+                        StmtKind::ForIn { var, iterable, .. } => {
+                            assert_eq!(var.name, "i");
+                            assert!(matches!(
+                                iterable.kind,
+                                ExprKind::Range { .. }
+                            ));
+                        }
+                        other => panic!("expected ForIn, got {:?}", other),
+                    }
+                }
+                _ => panic!("expected block body for main"),
+            },
+            _ => panic!("expected FuncDecl"),
         }
     }
 

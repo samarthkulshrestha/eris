@@ -42,10 +42,16 @@ pub enum Token {
     Break,
     #[token("continue")]
     Continue,
+    #[token("for")]
+    For,
+    #[token("in")]
+    In,
 
     // Operators
     #[token(":=")]
     DeclareAssign,
+    #[token("..")]
+    DotDot,
     #[token("=")]
     Assign,
     #[token("+")]
@@ -161,6 +167,9 @@ impl fmt::Display for Token {
             Token::Return => write!(f, "Keyword: return"),
             Token::DeclareAssign => write!(f, "Operator: :="),
             Token::Assign => write!(f, "Operator: ="),
+            Token::For => write!(f, "Keyword: for"),
+            Token::In => write!(f, "Keyword: in"),
+            Token::DotDot => write!(f, "Operator: .."),
             _ => write!(f, "{:?}", self),
         }
     }

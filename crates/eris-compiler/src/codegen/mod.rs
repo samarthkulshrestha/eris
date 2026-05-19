@@ -423,6 +423,9 @@ impl<'ctx> CodeGen<'ctx> {
                 self.builder.build_unconditional_branch(cond)
                     .map_err(|e| format!("Failed to build continue branch: {}", e))?;
             }
+            StmtKind::ForIn { .. } => {
+                todo!("for-in codegen not yet implemented")
+            }
         }
         Ok(())
     }

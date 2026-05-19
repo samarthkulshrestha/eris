@@ -299,6 +299,9 @@ impl Analyzer {
                     ));
                 }
             }
+            StmtKind::ForIn { .. } => {
+                todo!("for-in analysis not yet implemented")
+            }
         }
     }
 
