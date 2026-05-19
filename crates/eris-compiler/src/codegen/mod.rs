@@ -37,8 +37,8 @@ impl<'ctx> CodeGen<'ctx> {
     /// expression, if-expressions with absent branches). The analyzer must
     /// prevent these from being consumed in value contexts; the placeholder
     /// exists only to satisfy the BasicValueEnum return type. Until codegen
-    /// returns Option<BasicValueEnum> end-to-end (Phase 1), keep the dummy
-    /// in one place so it's easy to find and reason about.
+    /// returns Option<BasicValueEnum> end-to-end, keep the dummy in one place
+    /// so it's easy to find and reason about.
     fn void_placeholder(&self) -> BasicValueEnum<'ctx> {
         self.context.i64_type().const_int(0, false).into()
     }
