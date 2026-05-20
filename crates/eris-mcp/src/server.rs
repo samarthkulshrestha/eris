@@ -27,12 +27,6 @@ impl ErisMcpServer {
     }
 }
 
-impl Default for ErisMcpServer {
-    fn default() -> Self {
-        Self::new().expect("failed to load eris-mcp artifacts")
-    }
-}
-
 /// Lightweight index entry returned by `list_cookbook_entries`.
 #[derive(Debug, Clone, Serialize)]
 pub struct CookbookIndexEntry {
