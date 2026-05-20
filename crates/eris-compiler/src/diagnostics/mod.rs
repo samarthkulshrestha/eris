@@ -5,6 +5,7 @@ use serde_json::Map;
 
 pub mod codes;
 pub mod json;
+pub mod language_card;
 
 pub use codes::ErrorCode;
 

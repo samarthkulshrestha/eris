@@ -36,7 +36,7 @@ pub enum ErrorCode {
 
 /// Single source of truth for error code string values.
 /// To add a new code: add the variant above AND one entry here — nothing else.
-const ALL_CODES: &[(ErrorCode, &str)] = &[
+pub const ALL_CODES: &[(ErrorCode, &str)] = &[
     (ErrorCode::E0001, "E0001"),
     (ErrorCode::E0002, "E0002"),
     (ErrorCode::E0101, "E0101"),
