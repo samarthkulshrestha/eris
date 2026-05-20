@@ -87,7 +87,7 @@ Unary prefix forms:
 --- doc comment (same lexical treatment as single-line comment)
 ```
 
-Multi-line comments (`-+ ... +-`) are defined in the grammar but not yet processed by the lexer. Use consecutive `--` lines instead.
+Multi-line comments (`-+ ... +-`) are reserved syntax but not yet implemented. Writing them in source today produces an E0002 InvalidToken error. For multi-line documentation, use consecutive `--` lines instead.
 
 ### 2.4 Literal forms
 
@@ -493,15 +493,15 @@ Use `for VAR in START..END { ... }` when iterating a known integer range; the lo
 A `mut int` parameter receives a copy. Mutations inside the function body do not affect the caller's variable. To update the caller's variable through a reference, declare the parameter as `&mut int` and pass `&mut VAR` at the call site:
 
 ```
--- Value copy: caller's x is unchanged
-int double_copy(mut int n) {
+-- Value copy: caller's x is unchanged after the call
+int mutate_local(mut int n) {
     n = n * 2;
     return n;
 }
 
--- Reference: caller's x is modified through the pointer
-int set_via_ref(&mut int p, int v) {
-    *p = v;
+-- Reference: caller's x is modified in place through the pointer
+int mutate_via_ref(&mut int p) {
+    *p = *p * 2;
     return 0;
 }
 ```
@@ -576,7 +576,15 @@ int main() {
 }
 ```
 
-Expected output: `0 1 2 3 4` (each on its own line).
+Expected output:
+
+```
+0
+1
+2
+3
+4
+```
 
 ### 8.4 Mutation through a reference
 
