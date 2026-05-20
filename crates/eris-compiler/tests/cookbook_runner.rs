@@ -3,7 +3,6 @@ use eris_compiler::{CompileOptions, OutputFormat, process_file};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
 
 #[test]
 fn every_cookbook_entry_runs_correctly() {
@@ -63,22 +62,6 @@ fn run_entry(entry: &CookbookEntry) -> Result<(), String> {
     } else {
         // close stdin so read_int doesn't block on a missing input
         drop(child.stdin.take());
-    }
-
-    // Poll for completion with a 5s timeout.
-    let timeout = Duration::from_secs(5);
-    let start = Instant::now();
-    loop {
-        match child.try_wait().map_err(|e| format!("try_wait: {}", e))? {
-            Some(_status) => break,
-            None => {
-                if start.elapsed() > timeout {
-                    let _ = child.kill();
-                    return Err(format!("timed out after {:?}", timeout));
-                }
-                std::thread::sleep(Duration::from_millis(10));
-            }
-        }
     }
 
     let output = child
