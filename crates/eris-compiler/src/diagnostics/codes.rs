@@ -69,6 +69,84 @@ impl ErrorCode {
         }
         unreachable!("ErrorCode variant missing from ALL_CODES")
     }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            ErrorCode::E0001 => "InvalidIdentifier",
+            ErrorCode::E0002 => "InvalidToken",
+            ErrorCode::E0101 => "UnexpectedToken",
+            ErrorCode::E0102 => "LexerErrorInParse",
+            ErrorCode::E0201 => "UndeclaredVariable",
+            ErrorCode::E0202 => "UndeclaredFunction",
+            ErrorCode::E0203 => "TypeMismatch",
+            ErrorCode::E0204 => "IncorrectArgumentCount",
+            ErrorCode::E0205 => "VariableAlreadyDeclared",
+            ErrorCode::E0206 => "AssignmentToImmutable",
+            ErrorCode::E0207 => "BreakOutsideLoop",
+            ErrorCode::E0208 => "ContinueOutsideLoop",
+            ErrorCode::E0209 => "MissingReturn",
+            ErrorCode::E0219 => "ReturnMissingValue",
+            ErrorCode::E0220 => "NonIterableInForLoop",
+            ErrorCode::E0221 => "IndexOutOfRange",
+            ErrorCode::E0222 => "IndexNotInteger",
+            ErrorCode::E0223 => "TakeRefOfNonLvalue",
+            ErrorCode::E0224 => "TakeMutRefOfImmutable",
+            ErrorCode::E0225 => "DerefOfNonReference",
+            ErrorCode::E0226 => "ReturnsLocalReference",
+        }
+    }
+
+    pub fn fields(self) -> &'static [&'static str] {
+        match self {
+            ErrorCode::E0001 => &["ident"],
+            ErrorCode::E0002 => &["token"],
+            ErrorCode::E0101 => &["expected", "found"],
+            ErrorCode::E0102 => &["inner"],
+            ErrorCode::E0201 => &["name"],
+            ErrorCode::E0202 => &["name"],
+            ErrorCode::E0203 => &["expected", "found"],
+            ErrorCode::E0204 => &["expected", "found"],
+            ErrorCode::E0205 => &["name"],
+            ErrorCode::E0206 => &["name"],
+            ErrorCode::E0207 => &[],
+            ErrorCode::E0208 => &[],
+            ErrorCode::E0209 => &["function"],
+            ErrorCode::E0219 => &["function"],
+            ErrorCode::E0220 => &["found"],
+            ErrorCode::E0221 => &["array_size", "index"],
+            ErrorCode::E0222 => &["found"],
+            ErrorCode::E0223 => &[],
+            ErrorCode::E0224 => &["name"],
+            ErrorCode::E0225 => &["found"],
+            ErrorCode::E0226 => &[],
+        }
+    }
+
+    pub fn static_hint(self) -> Option<&'static str> {
+        match self {
+            ErrorCode::E0001 => Some("identifiers must start with a letter or '_'"),
+            ErrorCode::E0002 => Some("check for stray characters or unterminated literals"),
+            ErrorCode::E0101 => None,
+            ErrorCode::E0102 => None,
+            ErrorCode::E0201 => Some("make sure the variable is declared before use"),
+            ErrorCode::E0202 => Some("functions must be declared before they are called"),
+            ErrorCode::E0203 => Some("Eris does not insert implicit conversions; the types must match exactly"),
+            ErrorCode::E0204 => None,
+            ErrorCode::E0205 => Some("a name can only be bound once in the same scope"),
+            ErrorCode::E0206 => Some("declare the variable with 'mut' to allow reassignment"),
+            ErrorCode::E0207 => Some("break is only valid inside a loop body"),
+            ErrorCode::E0208 => Some("continue is only valid inside a loop body"),
+            ErrorCode::E0209 => Some("non-void functions must return on every control-flow path"),
+            ErrorCode::E0219 => Some("supply a return value, or change the function's return type"),
+            ErrorCode::E0220 => Some("use 'start..end' to iterate an integer range"),
+            ErrorCode::E0221 => Some("indices must lie in 0..array_size"),
+            ErrorCode::E0222 => Some("convert the index expression to 'int' before indexing"),
+            ErrorCode::E0223 => Some("introduce a named variable first, then take a reference to it"),
+            ErrorCode::E0224 => Some("declare the variable with 'mut' to allow mutable references"),
+            ErrorCode::E0225 => Some("take a reference with '&' or '&mut' before dereferencing"),
+            ErrorCode::E0226 => Some("return the value itself, or pass the destination as a '&mut' parameter"),
+        }
+    }
 }
 
 impl From<ErrorCode> for &'static str {
@@ -139,5 +217,27 @@ mod tests {
                 code
             );
         }
+    }
+
+    #[test]
+    fn error_codes_have_descriptive_names() {
+        assert_eq!(ErrorCode::E0001.name(), "InvalidIdentifier");
+        assert_eq!(ErrorCode::E0203.name(), "TypeMismatch");
+        assert_eq!(ErrorCode::E0220.name(), "NonIterableInForLoop");
+        assert_eq!(ErrorCode::E0226.name(), "ReturnsLocalReference");
+    }
+
+    #[test]
+    fn error_codes_have_field_lists() {
+        assert_eq!(ErrorCode::E0001.fields(), &["ident"]);
+        assert_eq!(ErrorCode::E0203.fields(), &["expected", "found"]);
+        assert_eq!(ErrorCode::E0207.fields(), &[] as &[&str]);
+        assert_eq!(ErrorCode::E0221.fields(), &["array_size", "index"]);
+    }
+
+    #[test]
+    fn error_codes_have_static_hints() {
+        assert!(ErrorCode::E0206.static_hint().is_some());
+        assert!(ErrorCode::E0223.static_hint().is_some());
     }
 }
