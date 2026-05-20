@@ -1,0 +1,12 @@
+---
+--- title: Cannot reassign an immutable variable
+--- description: Variables declared with `int x := ...` are immutable. Declare with `mut int x := ...` to allow reassignment.
+--- expected_error: E0206
+--- tags: [E0206, mutability]
+---
+
+int main() {
+    int x := 1;
+    x = 2;
+    return x;
+}

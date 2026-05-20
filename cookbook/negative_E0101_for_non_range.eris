@@ -1,0 +1,12 @@
+---
+--- title: The for-in loop requires a range expression
+--- description: The parser requires `start..end` syntax for for-in. Providing a bare integer where the range is expected is a syntax error; use `0..n` instead.
+--- expected_error: E0101
+--- tags: [E0101, for-in, control-flow]
+---
+
+int main() {
+    mut int total := 0;
+    for i in 5 { total = total + i; }
+    return total;
+}

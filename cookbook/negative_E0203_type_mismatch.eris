@@ -1,0 +1,11 @@
+---
+--- title: Cannot assign a char to an int variable
+--- description: Eris does not insert implicit conversions; the declared type and the initializer type must match exactly.
+--- expected_error: E0203
+--- tags: [E0203, types]
+---
+
+int main() {
+    int x := 'a';
+    return 0;
+}

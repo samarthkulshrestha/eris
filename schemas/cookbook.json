@@ -122,6 +122,73 @@
     "source": "---\n--- title: mut int parameter vs &mut int parameter\n--- description: mut int n mutates a local copy. &mut int p mutates through the caller's variable. The caller prints x before and after each call.\n--- expected_output: |\n---   start: 10\n---   after mutate_local: 10\n---   after mutate_via_ref: 20\n--- tags: [references, mutability, idioms]\n---\n\nint mutate_local(mut int n) {\n    n = n * 2;\n    return n;\n}\n\nint mutate_via_ref(&mut int p) {\n    *p = *p * 2;\n    return 0;\n}\n\nint main() {\n    mut int x := 10;\n    print_str(\"start: \"); print_int(x); println();\n    mutate_local(x);\n    print_str(\"after mutate_local: \"); print_int(x); println();\n    mutate_via_ref(&mut x);\n    print_str(\"after mutate_via_ref: \"); print_int(x); println();\n    return 0;\n}\n"
   },
   {
+    "id": "negative_E0101_for_non_range",
+    "title": "The for-in loop requires a range expression",
+    "description": "The parser requires `start..end` syntax for for-in. Providing a bare integer where the range is expected is a syntax error; use `0..n` instead.",
+    "expected_error": "E0101",
+    "stdin": "",
+    "tags": [
+      "E0101",
+      "for-in",
+      "control-flow"
+    ],
+    "file": "cookbook/negative_E0101_for_non_range.eris",
+    "source": "---\n--- title: The for-in loop requires a range expression\n--- description: The parser requires `start..end` syntax for for-in. Providing a bare integer where the range is expected is a syntax error; use `0..n` instead.\n--- expected_error: E0101\n--- tags: [E0101, for-in, control-flow]\n---\n\nint main() {\n    mut int total := 0;\n    for i in 5 { total = total + i; }\n    return total;\n}\n"
+  },
+  {
+    "id": "negative_E0203_type_mismatch",
+    "title": "Cannot assign a char to an int variable",
+    "description": "Eris does not insert implicit conversions; the declared type and the initializer type must match exactly.",
+    "expected_error": "E0203",
+    "stdin": "",
+    "tags": [
+      "E0203",
+      "types"
+    ],
+    "file": "cookbook/negative_E0203_type_mismatch.eris",
+    "source": "---\n--- title: Cannot assign a char to an int variable\n--- description: Eris does not insert implicit conversions; the declared type and the initializer type must match exactly.\n--- expected_error: E0203\n--- tags: [E0203, types]\n---\n\nint main() {\n    int x := 'a';\n    return 0;\n}\n"
+  },
+  {
+    "id": "negative_E0206_assign_immutable",
+    "title": "Cannot reassign an immutable variable",
+    "description": "Variables declared with `int x := ...` are immutable. Declare with `mut int x := ...` to allow reassignment.",
+    "expected_error": "E0206",
+    "stdin": "",
+    "tags": [
+      "E0206",
+      "mutability"
+    ],
+    "file": "cookbook/negative_E0206_assign_immutable.eris",
+    "source": "---\n--- title: Cannot reassign an immutable variable\n--- description: Variables declared with `int x := ...` are immutable. Declare with `mut int x := ...` to allow reassignment.\n--- expected_error: E0206\n--- tags: [E0206, mutability]\n---\n\nint main() {\n    int x := 1;\n    x = 2;\n    return x;\n}\n"
+  },
+  {
+    "id": "negative_E0207_break_outside_loop",
+    "title": "Cannot break outside a loop body",
+    "description": "`break` is only valid inside the body of a `while` or `for` loop. Use `return` to exit a function.",
+    "expected_error": "E0207",
+    "stdin": "",
+    "tags": [
+      "E0207",
+      "break",
+      "control-flow"
+    ],
+    "file": "cookbook/negative_E0207_break_outside_loop.eris",
+    "source": "---\n--- title: Cannot break outside a loop body\n--- description: `break` is only valid inside the body of a `while` or `for` loop. Use `return` to exit a function.\n--- expected_error: E0207\n--- tags: [E0207, break, control-flow]\n---\n\nint main() {\n    break;\n    return 0;\n}\n"
+  },
+  {
+    "id": "negative_E0223_takeref_nonlvalue",
+    "title": "Cannot take a reference to a literal",
+    "description": "Eris requires a named variable as the target of `&mut`. Bind the literal to a variable first, then take a reference to that.",
+    "expected_error": "E0223",
+    "stdin": "",
+    "tags": [
+      "E0223",
+      "references"
+    ],
+    "file": "cookbook/negative_E0223_takeref_nonlvalue.eris",
+    "source": "---\n--- title: Cannot take a reference to a literal\n--- description: Eris requires a named variable as the target of `&mut`. Bind the literal to a variable first, then take a reference to that.\n--- expected_error: E0223\n--- tags: [E0223, references]\n---\n\nint main() {\n    &mut int p := &mut 5;\n    return *p;\n}\n"
+  },
+  {
     "id": "read_int_echo",
     "title": "Echo an integer from stdin",
     "description": "Reads one int with read_int and prints it back.",

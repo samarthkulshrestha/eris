@@ -1,0 +1,11 @@
+---
+--- title: Cannot take a reference to a literal
+--- description: Eris requires a named variable as the target of `&mut`. Bind the literal to a variable first, then take a reference to that.
+--- expected_error: E0223
+--- tags: [E0223, references]
+---
+
+int main() {
+    &mut int p := &mut 5;
+    return *p;
+}

@@ -1,0 +1,11 @@
+---
+--- title: Cannot break outside a loop body
+--- description: `break` is only valid inside the body of a `while` or `for` loop. Use `return` to exit a function.
+--- expected_error: E0207
+--- tags: [E0207, break, control-flow]
+---
+
+int main() {
+    break;
+    return 0;
+}
