@@ -524,6 +524,8 @@ References (`&T`, `&mut T`) must be taken explicitly with `&` or `&mut`. There i
 
 All examples below compile against the Eris v0.8.0 compiler without modification.
 
+> A wider canonical set of programs — each compiled and run by the `cookbook_runner` test — lives in `cookbook/`. The structured index at `schemas/cookbook.json` is the form consumed by tooling. The examples here are the minimal core subset.
+
 ### 8.1 Factorial (recursive)
 
 ```
