@@ -184,8 +184,8 @@ mod tests {
         let card = build_language_card();
         assert_eq!(
             card.error_codes.len(),
-            21,
-            "expected 21 error codes in catalog"
+            crate::diagnostics::codes::ALL_CODES.len(),
+            "card error_codes count must equal ALL_CODES count"
         );
         assert!(card.error_codes.iter().any(|e| e.code == "E0203" && e.name == "TypeMismatch"));
     }

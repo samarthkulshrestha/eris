@@ -24,6 +24,7 @@ pub enum ErrorCode {
     E0207,
     E0208,
     E0209,
+    // E0210–E0218 reserved for future analyzer codes (control-flow, exhaustiveness, etc.)
     E0219,
     E0220,
     E0221,

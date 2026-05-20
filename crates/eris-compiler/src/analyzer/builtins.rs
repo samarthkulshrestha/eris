@@ -1,12 +1,12 @@
 use crate::parser::ast::TypeKind;
 
-pub struct BuiltinFunction {
-    pub name: &'static str,
-    pub parameters: &'static [TypeKind],
-    pub return_type: Option<TypeKind>,
+pub(crate) struct BuiltinFunction {
+    pub(crate) name: &'static str,
+    pub(crate) parameters: &'static [TypeKind],
+    pub(crate) return_type: Option<TypeKind>,
 }
 
-pub static BUILTIN_FUNCTIONS: &[BuiltinFunction] = &[
+pub(crate) static BUILTIN_FUNCTIONS: &[BuiltinFunction] = &[
     BuiltinFunction { name: "print_int",  parameters: &[TypeKind::Int],  return_type: None },
     BuiltinFunction { name: "print_bool", parameters: &[TypeKind::Bool], return_type: None },
     BuiltinFunction { name: "print_char", parameters: &[TypeKind::Char], return_type: None },

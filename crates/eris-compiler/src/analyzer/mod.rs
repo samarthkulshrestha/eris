@@ -1,6 +1,6 @@
 mod error;
 mod symbol;
-pub mod builtins;
+pub(crate) mod builtins;
 
 pub use error::{AnalyzeError, AnalyzeErrorKind};
 use symbol::{Scope, Symbol};
