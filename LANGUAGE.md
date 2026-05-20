@@ -406,13 +406,15 @@ Built-in functions are pre-declared in the global scope. They cannot be redefine
 
 | Name         | Signature                       | Behavior                                              |
 |--------------|---------------------------------|-------------------------------------------------------|
-| `print_int`  | `print_int(int) -> ()`          | Print a decimal integer followed by a newline         |
-| `print_bool` | `print_bool(bool) -> ()`        | Print `true` or `false` followed by a newline         |
+| `print_int`  | `print_int(int) -> ()`          | Print a decimal integer (no trailing newline)         |
+| `print_bool` | `print_bool(bool) -> ()`        | Print `true` or `false` (no trailing newline)         |
 | `print_char` | `print_char(char) -> ()`        | Print a single character (no newline)                 |
 | `print_str`  | `print_str(str) -> ()`          | Print a null-terminated string (no trailing newline)  |
 | `println`    | `println() -> ()`               | Print a newline character                             |
 | `read_int`   | `read_int() -> int`             | Read one integer from stdin; blocks until input       |
 | `len`        | `len(arr[T]) -> int`            | Return the number of elements in an array             |
+
+To print each value on its own line, call `println()` after the `print_*` function — none of them emit a newline by themselves.
 
 `len` is polymorphic over the element type `T`; it accepts any array. All other builtins have fixed types. LLVM lowering: `print_int`, `print_bool`, `print_char`, `print_str`, and `println` are implemented as calls to a C runtime helper linked in via `clang`. `read_int` calls a C `scanf`-based helper. `len` is lowered to a compile-time constant derived from the LLVM array type.
 
@@ -570,6 +572,7 @@ int main() {
     while true {
         if n >= 5 { break; }
         print_int(n);
+        println();
         n = n + 1;
     }
     return 0;
