@@ -1,3 +1,4 @@
+use eris_compiler::analyze_source;
 use eris_compiler::cookbook::{load_all_entries, CookbookEntry};
 use eris_compiler::{CompileOptions, OutputFormat, process_file};
 use std::io::Write;
@@ -32,6 +33,16 @@ fn every_cookbook_entry_runs_correctly() {
 }
 
 fn run_entry(entry: &CookbookEntry) -> Result<(), String> {
+    match (&entry.expected_output, &entry.expected_error) {
+        (Some(expected_output), None) => run_positive(entry, expected_output),
+        (None, Some(expected_error)) => run_negative(entry, expected_error),
+        _ => Err(
+            "entry has neither or both of expected_output/expected_error".to_string(),
+        ),
+    }
+}
+
+fn run_positive(entry: &CookbookEntry, expected_output: &str) -> Result<(), String> {
     let tmp = tempfile::tempdir().map_err(|e| format!("tempdir: {}", e))?;
     let src_path = tmp.path().join(format!("{}.eris", entry.id));
     std::fs::write(&src_path, &entry.source)
@@ -77,10 +88,37 @@ fn run_entry(entry: &CookbookEntry) -> Result<(), String> {
             exit_code, stderr
         ));
     }
-    if stdout != entry.expected_output {
+    if stdout != expected_output {
         return Err(format!(
             "stdout mismatch\nexpected: {:?}\nactual:   {:?}",
-            entry.expected_output, stdout
+            expected_output, stdout
+        ));
+    }
+    Ok(())
+}
+
+fn run_negative(entry: &CookbookEntry, expected_error: &str) -> Result<(), String> {
+    let diagnostics = analyze_source(&entry.source);
+    if diagnostics.is_empty() {
+        return Err(format!(
+            "expected diagnostic {} but analyzer produced none",
+            expected_error
+        ));
+    }
+    if diagnostics.len() != 1 {
+        let codes: Vec<&'static str> =
+            diagnostics.iter().map(|d| d.code.as_str()).collect();
+        return Err(format!(
+            "expected exactly 1 diagnostic, got {}: {}",
+            diagnostics.len(),
+            codes.join(", ")
+        ));
+    }
+    let actual_code = diagnostics[0].code.as_str();
+    if actual_code != expected_error {
+        return Err(format!(
+            "expected diagnostic {}, got {}",
+            expected_error, actual_code
         ));
     }
     Ok(())
