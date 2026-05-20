@@ -24,7 +24,7 @@ int main() {
                 a[j] = tmp;
                 j = j - 1;
             } else {
-                j = 0;
+                break;
             }
         }
         i = i + 1;

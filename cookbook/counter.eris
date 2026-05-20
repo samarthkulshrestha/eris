@@ -1,6 +1,6 @@
 ---
---- title: While with break, printing each step
---- description: Increment a mut int inside while true, break on a condition. Each value is printed on its own line.
+--- title: Early exit from a loop with break
+--- description: Use break to leave a loop body early. For known integer ranges prefer for-in (see sum_to); reach for while+break when the exit condition cannot be expressed as a range.
 --- expected_output: |
 ---   0
 ---   1

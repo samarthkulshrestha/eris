@@ -1,0 +1,19 @@
+---
+--- title: Combining conditions with &&
+--- description: Use && to require two conditions both hold. The result is true only when both sides are true.
+--- expected_output: |
+---   both positive
+--- tags: [bool, logic, operators]
+---
+
+int main() {
+    int a := 3;
+    int b := 4;
+    if a > 0 && b > 0 {
+        print_str("both positive");
+    } else {
+        print_str("at least one non-positive");
+    }
+    println();
+    return 0;
+}

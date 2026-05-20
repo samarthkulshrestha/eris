@@ -1,0 +1,15 @@
+---
+--- title: print_char emits one byte at a time
+--- description: print_char writes a single byte to stdout with no trailing newline. Combine several calls to assemble a short fixed string.
+--- expected_output: |
+---   abc
+--- tags: [char, builtins]
+---
+
+int main() {
+    print_char('a');
+    print_char('b');
+    print_char('c');
+    println();
+    return 0;
+}

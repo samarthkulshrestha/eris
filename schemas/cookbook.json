@@ -27,36 +27,36 @@
     "source": "---\n--- title: Bitwise flag pack and unpack\n--- description: Set two flags by OR-ing 1 and 2, then test each bit with & and a shift.\n--- expected_output: |\n---   flag_a: 1\n---   flag_b: 1\n--- tags: [bitwise, operators]\n---\n\nint main() {\n    int packed := 1 | 2;\n    int flag_a := packed & 1;\n    int flag_b := (packed >> 1) & 1;\n    print_str(\"flag_a: \"); print_int(flag_a); println();\n    print_str(\"flag_b: \"); print_int(flag_b); println();\n    return 0;\n}\n"
   },
   {
-    "id": "bool_short_circuit",
-    "title": "Short-circuiting && in a guard",
-    "description": "&& evaluates left to right and skips the right operand when the left is false. Used here to safely guard a subsequent comparison.",
-    "expected_output": "safe\n",
+    "id": "bool_and_combine",
+    "title": "Combining conditions with &&",
+    "description": "Use && to require two conditions both hold. The result is true only when both sides are true.",
+    "expected_output": "both positive\n",
     "stdin": "",
     "tags": [
       "bool",
-      "short-circuit",
-      "logic"
+      "logic",
+      "operators"
     ],
-    "file": "cookbook/bool_short_circuit.eris",
-    "source": "---\n--- title: Short-circuiting && in a guard\n--- description: && evaluates left to right and skips the right operand when the left is false. Used here to safely guard a subsequent comparison.\n--- expected_output: |\n---   safe\n--- tags: [bool, short-circuit, logic]\n---\n\nint main() {\n    int n := 0;\n    if n != 0 && (10 / n) > 0 {\n        print_str(\"would have divided by zero\");\n    } else {\n        print_str(\"safe\");\n    }\n    println();\n    return 0;\n}\n"
+    "file": "cookbook/bool_and_combine.eris",
+    "source": "---\n--- title: Combining conditions with &&\n--- description: Use && to require two conditions both hold. The result is true only when both sides are true.\n--- expected_output: |\n---   both positive\n--- tags: [bool, logic, operators]\n---\n\nint main() {\n    int a := 3;\n    int b := 4;\n    if a > 0 && b > 0 {\n        print_str(\"both positive\");\n    } else {\n        print_str(\"at least one non-positive\");\n    }\n    println();\n    return 0;\n}\n"
   },
   {
-    "id": "char_arithmetic",
-    "title": "Char arithmetic via print_char",
-    "description": "Step through three consecutive characters by emitting them with print_char.",
+    "id": "char_print",
+    "title": "print_char emits one byte at a time",
+    "description": "print_char writes a single byte to stdout with no trailing newline. Combine several calls to assemble a short fixed string.",
     "expected_output": "abc\n",
     "stdin": "",
     "tags": [
       "char",
       "builtins"
     ],
-    "file": "cookbook/char_arithmetic.eris",
-    "source": "---\n--- title: Char arithmetic via print_char\n--- description: Step through three consecutive characters by emitting them with print_char.\n--- expected_output: |\n---   abc\n--- tags: [char, builtins]\n---\n\nint main() {\n    print_char('a');\n    print_char('b');\n    print_char('c');\n    println();\n    return 0;\n}\n"
+    "file": "cookbook/char_print.eris",
+    "source": "---\n--- title: print_char emits one byte at a time\n--- description: print_char writes a single byte to stdout with no trailing newline. Combine several calls to assemble a short fixed string.\n--- expected_output: |\n---   abc\n--- tags: [char, builtins]\n---\n\nint main() {\n    print_char('a');\n    print_char('b');\n    print_char('c');\n    println();\n    return 0;\n}\n"
   },
   {
     "id": "counter",
-    "title": "While with break, printing each step",
-    "description": "Increment a mut int inside while true, break on a condition. Each value is printed on its own line.",
+    "title": "Early exit from a loop with break",
+    "description": "Use break to leave a loop body early. For known integer ranges prefer for-in (see sum_to); reach for while+break when the exit condition cannot be expressed as a range.",
     "expected_output": "0\n1\n2\n3\n4\n",
     "stdin": "",
     "tags": [
@@ -65,7 +65,7 @@
       "control-flow"
     ],
     "file": "cookbook/counter.eris",
-    "source": "---\n--- title: While with break, printing each step\n--- description: Increment a mut int inside while true, break on a condition. Each value is printed on its own line.\n--- expected_output: |\n---   0\n---   1\n---   2\n---   3\n---   4\n--- tags: [while, break, control-flow]\n---\n\nint main() {\n    mut int n := 0;\n    while true {\n        if n >= 5 { break; }\n        print_int(n);\n        println();\n        n = n + 1;\n    }\n    return 0;\n}\n"
+    "source": "---\n--- title: Early exit from a loop with break\n--- description: Use break to leave a loop body early. For known integer ranges prefer for-in (see sum_to); reach for while+break when the exit condition cannot be expressed as a range.\n--- expected_output: |\n---   0\n---   1\n---   2\n---   3\n---   4\n--- tags: [while, break, control-flow]\n---\n\nint main() {\n    mut int n := 0;\n    while true {\n        if n >= 5 { break; }\n        print_int(n);\n        println();\n        n = n + 1;\n    }\n    return 0;\n}\n"
   },
   {
     "id": "factorial",
@@ -105,7 +105,7 @@
       "algorithms"
     ],
     "file": "cookbook/insertion_sort.eris",
-    "source": "---\n--- title: Insertion sort over a 6-element int array\n--- description: Sort [5, 2, 4, 6, 1, 3] in place; print the sorted result, one element per line.\n--- expected_output: |\n---   1\n---   2\n---   3\n---   4\n---   5\n---   6\n--- tags: [arrays, sorting, algorithms]\n---\n\nint main() {\n    mut arr[int] a := [5, 2, 4, 6, 1, 3];\n    mut int i := 1;\n    while i < len(a) {\n        mut int j := i;\n        while j > 0 {\n            mut int prev := j - 1;\n            if a[prev] > a[j] {\n                mut int tmp := a[prev];\n                a[prev] = a[j];\n                a[j] = tmp;\n                j = j - 1;\n            } else {\n                j = 0;\n            }\n        }\n        i = i + 1;\n    }\n    mut int k := 0;\n    while k < len(a) {\n        print_int(a[k]);\n        println();\n        k = k + 1;\n    }\n    return 0;\n}\n"
+    "source": "---\n--- title: Insertion sort over a 6-element int array\n--- description: Sort [5, 2, 4, 6, 1, 3] in place; print the sorted result, one element per line.\n--- expected_output: |\n---   1\n---   2\n---   3\n---   4\n---   5\n---   6\n--- tags: [arrays, sorting, algorithms]\n---\n\nint main() {\n    mut arr[int] a := [5, 2, 4, 6, 1, 3];\n    mut int i := 1;\n    while i < len(a) {\n        mut int j := i;\n        while j > 0 {\n            mut int prev := j - 1;\n            if a[prev] > a[j] {\n                mut int tmp := a[prev];\n                a[prev] = a[j];\n                a[j] = tmp;\n                j = j - 1;\n            } else {\n                break;\n            }\n        }\n        i = i + 1;\n    }\n    mut int k := 0;\n    while k < len(a) {\n        print_int(a[k]);\n        println();\n        k = k + 1;\n    }\n    return 0;\n}\n"
   },
   {
     "id": "mut_vs_ref_param",
