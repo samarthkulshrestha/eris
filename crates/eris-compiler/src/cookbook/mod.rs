@@ -112,6 +112,25 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
         }
 
         if value == "|" {
+            // Validate key supports block scalars before consuming content.
+            match key {
+                "expected_output" | "stdin" => {}
+                "title" | "description" => {
+                    return Err(parse_err(
+                        path,
+                        line_no,
+                        &format!("`{}` does not support block scalars", key),
+                    ));
+                }
+                _ => {
+                    return Err(parse_err(
+                        path,
+                        line_no,
+                        &format!("unknown key `{}`", key),
+                    ));
+                }
+            }
+
             // Block scalar — consume subsequent `---   content` lines.
             // Exit conditions: bare `---`, line not starting with `--- `,
             // or `--- `-prefixed line whose body lacks the 2-space indent
@@ -145,20 +164,7 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
             match key {
                 "expected_output" => expected_output = Some(content),
                 "stdin" => stdin = Some(content),
-                "title" | "description" => {
-                    return Err(parse_err(
-                        path,
-                        line_no,
-                        &format!("`{}` does not support block scalars", key),
-                    ));
-                }
-                _ => {
-                    return Err(parse_err(
-                        path,
-                        line_no,
-                        &format!("unknown key `{}`", key),
-                    ));
-                }
+                _ => unreachable!(),
             }
             // `i` already points at the terminator line; outer loop re-examines it.
             continue;
@@ -396,6 +402,27 @@ int main() { return 0; }
             format!("{}", err).contains("missing closing"),
             "got: {}",
             err
+        );
+    }
+
+    #[test]
+    fn block_scalar_on_title_reports_unsupported_key() {
+        let source = "\
+---
+--- title: |
+---   x
+--- description: D
+--- expected_output: |
+---   y
+---
+";
+        let path = PathBuf::from("cookbook/x.eris");
+        let err = parse_entry(&path, source).expect_err("should fail");
+        let msg = format!("{}", err);
+        assert!(
+            msg.contains("does not support block scalars"),
+            "got: {}",
+            msg
         );
     }
 }
