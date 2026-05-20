@@ -8,7 +8,10 @@ pub struct CookbookEntry {
     pub id: String,
     pub title: String,
     pub description: String,
-    pub expected_output: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expected_error: Option<String>,
     pub stdin: String,
     pub tags: Vec<String>,
     pub file: String,
@@ -75,6 +78,7 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
     let mut title: Option<String> = None;
     let mut description: Option<String> = None;
     let mut expected_output: Option<String> = None;
+    let mut expected_error: Option<String> = None;
     let mut stdin: Option<String> = None;
     let mut tags: Option<Vec<String>> = None;
     let mut saw_closer = false;
@@ -103,6 +107,7 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
             "title" => title.is_some(),
             "description" => description.is_some(),
             "expected_output" => expected_output.is_some(),
+            "expected_error" => expected_error.is_some(),
             "stdin" => stdin.is_some(),
             "tags" => tags.is_some(),
             _ => false,
@@ -115,7 +120,7 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
             // Validate key supports block scalars before consuming content.
             match key {
                 "expected_output" | "stdin" => {}
-                "title" | "description" => {
+                "title" | "description" | "expected_error" => {
                     return Err(parse_err(
                         path,
                         line_no,
@@ -193,6 +198,7 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
             "title" => title = Some(value.to_string()),
             "description" => description = Some(value.to_string()),
             "expected_output" => expected_output = Some(format!("{}\n", value)),
+            "expected_error" => expected_error = Some(value.to_string()),
             "stdin" => stdin = Some(format!("{}\n", value)),
             "tags" => {
                 return Err(parse_err(
@@ -212,13 +218,34 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
         return Err(parse_err(path, lines.len(), "header missing closing `---` line"));
     }
 
+    let title = title.ok_or_else(|| parse_err(path, 1, "missing required key `title`"))?;
+    let description = description
+        .ok_or_else(|| parse_err(path, 1, "missing required key `description`"))?;
+
+    match (&expected_output, &expected_error) {
+        (Some(_), Some(_)) => {
+            return Err(parse_err(
+                path,
+                1,
+                "exactly one of `expected_output` or `expected_error` must be set, not both",
+            ));
+        }
+        (None, None) => {
+            return Err(parse_err(
+                path,
+                1,
+                "exactly one of `expected_output` or `expected_error` must be set",
+            ));
+        }
+        _ => {}
+    }
+
     Ok(CookbookEntry {
         id,
-        title: title.ok_or_else(|| parse_err(path, 1, "missing required key `title`"))?,
-        description: description
-            .ok_or_else(|| parse_err(path, 1, "missing required key `description`"))?,
-        expected_output: expected_output
-            .ok_or_else(|| parse_err(path, 1, "missing required key `expected_output`"))?,
+        title,
+        description,
+        expected_output,
+        expected_error,
         stdin: stdin.unwrap_or_default(),
         tags: tags.unwrap_or_default(),
         file,
@@ -284,7 +311,8 @@ int main() { return 0; }
         assert_eq!(entry.id, "factorial");
         assert_eq!(entry.title, "Recursive factorial");
         assert_eq!(entry.description, "Recursion with if/else as the base case.");
-        assert_eq!(entry.expected_output, "720\n");
+        assert_eq!(entry.expected_output, Some("720\n".to_string()));
+        assert_eq!(entry.expected_error, None);
         assert_eq!(entry.stdin, "");
         assert_eq!(entry.tags, Vec::<String>::new());
         assert!(entry.source.contains("int main() { return 0; }"));
@@ -308,7 +336,8 @@ int main() { return 0; }
         let path = PathBuf::from("cookbook/read_int_echo.eris");
         let entry = parse_entry(&path, source).expect("parse failed");
         assert_eq!(entry.stdin, "42\n");
-        assert_eq!(entry.expected_output, "42\n");
+        assert_eq!(entry.expected_output, Some("42\n".to_string()));
+        assert_eq!(entry.expected_error, None);
         assert_eq!(entry.tags, vec!["io".to_string(), "read-int".to_string()]);
     }
 
@@ -366,7 +395,8 @@ int main() { return 0; }
 ";
         let path = PathBuf::from("cookbook/x.eris");
         let entry = parse_entry(&path, source).expect("parse failed");
-        assert_eq!(entry.expected_output, "line one\nline two\n");
+        assert_eq!(entry.expected_output, Some("line one\nline two\n".to_string()));
+        assert_eq!(entry.expected_error, None);
     }
 
     #[test]
@@ -424,5 +454,71 @@ int main() { return 0; }
             "got: {}",
             msg
         );
+    }
+
+    #[test]
+    fn parses_positive_entry_with_expected_output() {
+        let source = "\
+---
+--- title: Positive
+--- description: P
+--- expected_output: |
+---   ok
+---
+";
+        let path = PathBuf::from("cookbook/p.eris");
+        let entry = parse_entry(&path, source).expect("parse failed");
+        assert_eq!(entry.expected_output, Some("ok\n".to_string()));
+        assert_eq!(entry.expected_error, None);
+    }
+
+    #[test]
+    fn parses_negative_entry_with_expected_error() {
+        let source = "\
+---
+--- title: Negative
+--- description: N
+--- expected_error: E0203
+--- tags: [E0203]
+---
+
+int main() { int x := 'a'; return 0; }
+";
+        let path = PathBuf::from("cookbook/neg.eris");
+        let entry = parse_entry(&path, source).expect("parse failed");
+        assert_eq!(entry.expected_output, None);
+        assert_eq!(entry.expected_error, Some("E0203".to_string()));
+        assert_eq!(entry.tags, vec!["E0203".to_string()]);
+    }
+
+    #[test]
+    fn rejects_both_expected_output_and_expected_error() {
+        let source = "\
+---
+--- title: Bad
+--- description: B
+--- expected_output: |
+---   ok
+--- expected_error: E0203
+---
+";
+        let path = PathBuf::from("cookbook/bad.eris");
+        let err = parse_entry(&path, source).expect_err("should fail");
+        let msg = format!("{}", err);
+        assert!(msg.contains("exactly one"), "got: {}", msg);
+    }
+
+    #[test]
+    fn rejects_neither_expected_output_nor_expected_error() {
+        let source = "\
+---
+--- title: Bad
+--- description: B
+---
+";
+        let path = PathBuf::from("cookbook/bad.eris");
+        let err = parse_entry(&path, source).expect_err("should fail");
+        let msg = format!("{}", err);
+        assert!(msg.contains("exactly one"), "got: {}", msg);
     }
 }
