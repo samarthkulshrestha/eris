@@ -1,0 +1,362 @@
+{
+  "version": "0.8.0",
+  "schema_version": 1,
+  "keywords": [
+    "arr",
+    "bool",
+    "break",
+    "char",
+    "continue",
+    "else",
+    "false",
+    "float",
+    "for",
+    "if",
+    "in",
+    "int",
+    "mut",
+    "return",
+    "str",
+    "true",
+    "while"
+  ],
+  "operators": [
+    {
+      "token": "!",
+      "name": "Not"
+    },
+    {
+      "token": "!=",
+      "name": "NotEqual"
+    },
+    {
+      "token": "%",
+      "name": "Modulo"
+    },
+    {
+      "token": "&",
+      "name": "BitAnd"
+    },
+    {
+      "token": "&&",
+      "name": "And"
+    },
+    {
+      "token": "*",
+      "name": "Multiply"
+    },
+    {
+      "token": "+",
+      "name": "Plus"
+    },
+    {
+      "token": "-",
+      "name": "Minus"
+    },
+    {
+      "token": "..",
+      "name": "DotDot"
+    },
+    {
+      "token": "/",
+      "name": "Divide"
+    },
+    {
+      "token": ":=",
+      "name": "DeclareAssign"
+    },
+    {
+      "token": "<",
+      "name": "LessThan"
+    },
+    {
+      "token": "<<",
+      "name": "Shl"
+    },
+    {
+      "token": "<=",
+      "name": "LessEqual"
+    },
+    {
+      "token": "=",
+      "name": "Assign"
+    },
+    {
+      "token": "==",
+      "name": "Equal"
+    },
+    {
+      "token": ">",
+      "name": "GreaterThan"
+    },
+    {
+      "token": ">=",
+      "name": "GreaterEqual"
+    },
+    {
+      "token": ">>",
+      "name": "Shr"
+    },
+    {
+      "token": "^",
+      "name": "Caret"
+    },
+    {
+      "token": "|",
+      "name": "BitOr"
+    },
+    {
+      "token": "||",
+      "name": "Or"
+    },
+    {
+      "token": "~",
+      "name": "Tilde"
+    }
+  ],
+  "types": [
+    {
+      "name": "int",
+      "llvm": "i64"
+    },
+    {
+      "name": "bool",
+      "llvm": "i1"
+    },
+    {
+      "name": "char",
+      "llvm": "i8"
+    },
+    {
+      "name": "float",
+      "llvm": "f64"
+    },
+    {
+      "name": "str",
+      "llvm": "ptr",
+      "note": "null-terminated C string; slice representation in Tier 2"
+    },
+    {
+      "name": "arr",
+      "llvm": "[N x T]",
+      "params": [
+        "T"
+      ],
+      "note": "fixed-size; element type tracked, size inferred from literal"
+    },
+    {
+      "name": "&T",
+      "llvm": "ptr",
+      "forms": [
+        "&T",
+        "&mut T"
+      ],
+      "note": "Tier 1 restricts pointee to 'int' until Tier 2 slice work"
+    }
+  ],
+  "builtins": [
+    {
+      "name": "len",
+      "parameters": [
+        "arr"
+      ],
+      "returns": "int"
+    },
+    {
+      "name": "print_bool",
+      "parameters": [
+        "bool"
+      ]
+    },
+    {
+      "name": "print_char",
+      "parameters": [
+        "char"
+      ]
+    },
+    {
+      "name": "print_int",
+      "parameters": [
+        "int"
+      ]
+    },
+    {
+      "name": "print_str",
+      "parameters": [
+        "str"
+      ]
+    },
+    {
+      "name": "println",
+      "parameters": []
+    },
+    {
+      "name": "read_int",
+      "parameters": [],
+      "returns": "int"
+    }
+  ],
+  "error_codes": [
+    {
+      "code": "E0001",
+      "name": "InvalidIdentifier",
+      "fields": [
+        "identifier"
+      ],
+      "hint": "identifiers must start with a letter or '_'"
+    },
+    {
+      "code": "E0002",
+      "name": "InvalidToken",
+      "fields": [
+        "token"
+      ],
+      "hint": "check for stray characters or unterminated literals"
+    },
+    {
+      "code": "E0101",
+      "name": "UnexpectedToken",
+      "fields": [
+        "expected",
+        "found"
+      ]
+    },
+    {
+      "code": "E0102",
+      "name": "LexerErrorInParse",
+      "fields": [
+        "detail"
+      ]
+    },
+    {
+      "code": "E0201",
+      "name": "UndeclaredVariable",
+      "fields": [
+        "name"
+      ],
+      "hint": "make sure the variable is declared before use"
+    },
+    {
+      "code": "E0202",
+      "name": "UndeclaredFunction",
+      "fields": [
+        "name"
+      ],
+      "hint": "functions must be declared before they are called"
+    },
+    {
+      "code": "E0203",
+      "name": "TypeMismatch",
+      "fields": [
+        "expected",
+        "found"
+      ],
+      "hint": "Eris does not insert implicit conversions; the types must match exactly"
+    },
+    {
+      "code": "E0204",
+      "name": "IncorrectArgumentCount",
+      "fields": [
+        "expected",
+        "found"
+      ]
+    },
+    {
+      "code": "E0205",
+      "name": "VariableAlreadyDeclared",
+      "fields": [
+        "name"
+      ],
+      "hint": "a name can only be bound once in the same scope"
+    },
+    {
+      "code": "E0206",
+      "name": "AssignmentToImmutable",
+      "fields": [
+        "name"
+      ],
+      "hint": "declare the variable with 'mut' to allow reassignment"
+    },
+    {
+      "code": "E0207",
+      "name": "BreakOutsideLoop",
+      "fields": [],
+      "hint": "break is only valid inside a loop body"
+    },
+    {
+      "code": "E0208",
+      "name": "ContinueOutsideLoop",
+      "fields": [],
+      "hint": "continue is only valid inside a loop body"
+    },
+    {
+      "code": "E0209",
+      "name": "MissingReturn",
+      "fields": [
+        "function"
+      ],
+      "hint": "non-void functions must return on every control-flow path"
+    },
+    {
+      "code": "E0219",
+      "name": "ReturnMissingValue",
+      "fields": [
+        "function"
+      ],
+      "hint": "supply a return value, or change the function's return type"
+    },
+    {
+      "code": "E0220",
+      "name": "NonIterableInForLoop",
+      "fields": [
+        "found"
+      ],
+      "hint": "use 'start..end' to iterate an integer range"
+    },
+    {
+      "code": "E0221",
+      "name": "IndexOutOfRange",
+      "fields": [
+        "array_size",
+        "index"
+      ],
+      "hint": "indices must lie in 0..array_size"
+    },
+    {
+      "code": "E0222",
+      "name": "IndexNotInteger",
+      "fields": [
+        "found"
+      ],
+      "hint": "convert the index expression to 'int' before indexing"
+    },
+    {
+      "code": "E0223",
+      "name": "TakeRefOfNonLvalue",
+      "fields": [],
+      "hint": "introduce a named variable first, then take a reference to it"
+    },
+    {
+      "code": "E0224",
+      "name": "TakeMutRefOfImmutable",
+      "fields": [
+        "name"
+      ],
+      "hint": "declare the variable with 'mut' to allow mutable references"
+    },
+    {
+      "code": "E0225",
+      "name": "DerefOfNonReference",
+      "fields": [
+        "found"
+      ],
+      "hint": "take a reference with '&' or '&mut' before dereferencing"
+    },
+    {
+      "code": "E0226",
+      "name": "ReturnsLocalReference",
+      "fields": [],
+      "hint": "return the value itself, or pass the destination as a '&mut' parameter"
+    }
+  ]
+}
