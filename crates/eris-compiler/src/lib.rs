@@ -103,6 +103,34 @@ impl From<&CompileError> for Vec<crate::diagnostics::Diagnostic> {
     }
 }
 
+/// Lex, parse, and analyze Eris source. Returns every diagnostic the
+/// lexer, parser, and analyzer would emit. Empty Vec means the source
+/// passes all three phases cleanly. Performs no codegen or linking.
+///
+/// This is the pure, side-effect-free analysis entry point. It never
+/// writes files, never panics on user input, never invokes clang.
+pub fn analyze_source(source: &str) -> Vec<crate::diagnostics::Diagnostic> {
+    use crate::diagnostics::Diagnostic;
+
+    let mut lexer = crate::lexer::Lexer::new(source);
+    let tokens = match lexer.tokenize() {
+        Ok(t) => t,
+        Err(e) => return vec![Diagnostic::from(e)],
+    };
+
+    let mut parser = Parser::new(tokens);
+    let program = match parser.parse_program() {
+        Ok(p) => p,
+        Err(e) => return vec![Diagnostic::from(e)],
+    };
+
+    let mut analyzer = crate::analyzer::Analyzer::new();
+    match analyzer.analyze_program(&program) {
+        Ok(()) => Vec::new(),
+        Err(errors) => errors.into_iter().map(Diagnostic::from).collect(),
+    }
+}
+
 pub fn process_file(filename: &str, options: CompileOptions) -> Result<(), CompileError> {
     let source = fs::read_to_string(filename)?;
 
@@ -257,5 +285,52 @@ mod tests {
         process_file(src.to_str().unwrap(), options_default).expect("compilation with default options failed");
         let _ = fs::remove_file("01");
         let _ = fs::remove_file("01.ll");
+    }
+
+    #[test]
+    fn analyze_source_returns_lex_error_diagnostic() {
+        // `@` is not a valid Eris token.
+        let diagnostics = analyze_source("int main() { return @; }");
+        assert_eq!(diagnostics.len(), 1, "expected exactly one diagnostic");
+        assert_eq!(diagnostics[0].code, crate::diagnostics::ErrorCode::E0002);
+    }
+
+    #[test]
+    fn analyze_source_returns_parse_error_diagnostic() {
+        // Missing function body.
+        let diagnostics = analyze_source("int main()");
+        assert!(!diagnostics.is_empty(), "expected at least one diagnostic");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == crate::diagnostics::ErrorCode::E0101
+                    || d.code == crate::diagnostics::ErrorCode::E0102),
+            "expected a parse error code, got {:?}",
+            diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn analyze_source_returns_analyzer_error_diagnostic() {
+        let diagnostics = analyze_source("int main() { int x := 'a'; return 0; }");
+        assert!(!diagnostics.is_empty(), "expected at least one diagnostic");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|d| d.code == crate::diagnostics::ErrorCode::E0203),
+            "expected E0203, got {:?}",
+            diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn analyze_source_returns_empty_for_valid_program() {
+        let diagnostics =
+            analyze_source("int main() { print_int(42); println(); return 0; }");
+        assert!(
+            diagnostics.is_empty(),
+            "expected zero diagnostics for valid program, got {:?}",
+            diagnostics
+        );
     }
 }
