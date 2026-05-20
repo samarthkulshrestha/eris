@@ -37,6 +37,7 @@ pub struct TypeEntry {
 pub struct BuiltinEntry {
     pub name: String,
     pub parameters: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub returns: Option<String>,
 }
 
@@ -45,12 +46,12 @@ pub struct ErrorCodeEntry {
     pub code: String,
     pub name: String,
     pub fields: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub hint: Option<String>,
 }
 
 use crate::analyzer::builtins::BUILTIN_FUNCTIONS;
 use crate::diagnostics::codes::ALL_CODES;
-use crate::parser::ast::TypeKind;
 
 pub fn build_language_card() -> LanguageCard {
     let mut keywords = vec![
@@ -116,8 +117,8 @@ pub fn build_language_card() -> LanguageCard {
         .iter()
         .map(|b| BuiltinEntry {
             name: b.name.to_string(),
-            parameters: b.parameters.iter().map(type_kind_to_string).collect(),
-            returns: b.return_type.as_ref().map(type_kind_to_string),
+            parameters: b.parameters.iter().map(|t| t.to_string()).collect(),
+            returns: b.return_type.as_ref().map(|t| t.to_string()),
         })
         .collect();
     builtins.push(BuiltinEntry {
@@ -146,25 +147,6 @@ pub fn build_language_card() -> LanguageCard {
         types,
         builtins,
         error_codes,
-    }
-}
-
-fn type_kind_to_string(t: &TypeKind) -> String {
-    match t {
-        TypeKind::Int => "int".into(),
-        TypeKind::Bool => "bool".into(),
-        TypeKind::Char => "char".into(),
-        TypeKind::Float => "float".into(),
-        TypeKind::Str => "str".into(),
-        TypeKind::Array { element, size } => {
-            if *size == 0 {
-                format!("arr[{}]", type_kind_to_string(element))
-            } else {
-                format!("arr[{}; {}]", type_kind_to_string(element), size)
-            }
-        }
-        TypeKind::Ref { inner, mutable: false } => format!("&{}", type_kind_to_string(inner)),
-        TypeKind::Ref { inner, mutable: true } => format!("&mut {}", type_kind_to_string(inner)),
     }
 }
 
