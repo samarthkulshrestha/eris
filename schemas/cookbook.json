@@ -1,0 +1,28 @@
+[
+  {
+    "id": "factorial",
+    "title": "Recursive factorial",
+    "description": "Recursion with if/else as the base case.",
+    "expected_output": "720\n",
+    "stdin": "",
+    "tags": [
+      "recursion",
+      "control-flow"
+    ],
+    "file": "cookbook/factorial.eris",
+    "source": "---\n--- title: Recursive factorial\n--- description: Recursion with if/else as the base case.\n--- expected_output: |\n---   720\n--- tags: [recursion, control-flow]\n---\n\nint factorial(int n) {\n    if n <= 1 { return 1; } else { return n * factorial(n - 1); }\n}\n\nint main() {\n    print_int(factorial(6));\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "sum_to",
+    "title": "Sum of a range",
+    "description": "Iterate 0..n with for-in, accumulating into a mut int.",
+    "expected_output": "45\n",
+    "stdin": "",
+    "tags": [
+      "for-in",
+      "mutability"
+    ],
+    "file": "cookbook/sum_to.eris",
+    "source": "---\n--- title: Sum of a range\n--- description: Iterate 0..n with for-in, accumulating into a mut int.\n--- expected_output: |\n---   45\n--- tags: [for-in, mutability]\n---\n\nint sum_to(int n) {\n    mut int total := 0;\n    for i in 0..n { total = total + i; }\n    return total;\n}\n\nint main() {\n    print_int(sum_to(10));\n    println();\n    return 0;\n}\n"
+  }
+]

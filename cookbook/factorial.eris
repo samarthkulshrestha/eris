@@ -1,0 +1,17 @@
+---
+--- title: Recursive factorial
+--- description: Recursion with if/else as the base case.
+--- expected_output: |
+---   720
+--- tags: [recursion, control-flow]
+---
+
+int factorial(int n) {
+    if n <= 1 { return 1; } else { return n * factorial(n - 1); }
+}
+
+int main() {
+    print_int(factorial(6));
+    println();
+    return 0;
+}

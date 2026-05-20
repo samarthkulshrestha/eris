@@ -1,0 +1,19 @@
+---
+--- title: Sum of a range
+--- description: Iterate 0..n with for-in, accumulating into a mut int.
+--- expected_output: |
+---   45
+--- tags: [for-in, mutability]
+---
+
+int sum_to(int n) {
+    mut int total := 0;
+    for i in 0..n { total = total + i; }
+    return total;
+}
+
+int main() {
+    print_int(sum_to(10));
+    println();
+    return 0;
+}
