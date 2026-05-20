@@ -1,0 +1,17 @@
+[package]
+name = "eris-mcp"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "eris-mcp"
+path = "src/main.rs"
+
+[dependencies]
+eris-compiler.workspace = true
+rmcp = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

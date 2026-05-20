@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/eris-compiler", "crates/eris-cli"]
+members = ["crates/eris-compiler", "crates/eris-cli", "crates/eris-mcp"]
 resolver = "2"
 
 [workspace.package]
@@ -16,6 +16,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 schemars = "0.8"
 tempfile = "3"
+rmcp = { version = "1.7", features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "io-std"] }
 
 [profile.dev]
 debug = true
