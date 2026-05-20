@@ -1,0 +1,22 @@
+---
+--- title: While with break, printing each step
+--- description: Increment a mut int inside while true, break on a condition. Each value is printed on its own line.
+--- expected_output: |
+---   0
+---   1
+---   2
+---   3
+---   4
+--- tags: [while, break, control-flow]
+---
+
+int main() {
+    mut int n := 0;
+    while true {
+        if n >= 5 { break; }
+        print_int(n);
+        println();
+        n = n + 1;
+    }
+    return 0;
+}

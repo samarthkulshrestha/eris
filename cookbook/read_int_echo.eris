@@ -1,0 +1,16 @@
+---
+--- title: Echo an integer from stdin
+--- description: Reads one int with read_int and prints it back.
+--- stdin: |
+---   42
+--- expected_output: |
+---   42
+--- tags: [io, read_int]
+---
+
+int main() {
+    int n := read_int();
+    print_int(n);
+    println();
+    return 0;
+}

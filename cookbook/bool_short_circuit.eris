@@ -1,0 +1,18 @@
+---
+--- title: Short-circuiting && in a guard
+--- description: && evaluates left to right and skips the right operand when the left is false. Used here to safely guard a subsequent comparison.
+--- expected_output: |
+---   safe
+--- tags: [bool, short-circuit, logic]
+---
+
+int main() {
+    int n := 0;
+    if n != 0 && (10 / n) > 0 {
+        print_str("would have divided by zero");
+    } else {
+        print_str("safe");
+    }
+    println();
+    return 0;
+}

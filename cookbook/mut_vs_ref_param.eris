@@ -1,0 +1,29 @@
+---
+--- title: mut int parameter vs &mut int parameter
+--- description: mut int n mutates a local copy. &mut int p mutates through the caller's variable. The caller prints x before and after each call.
+--- expected_output: |
+---   start: 10
+---   after mutate_local: 10
+---   after mutate_via_ref: 20
+--- tags: [references, mutability, idioms]
+---
+
+int mutate_local(mut int n) {
+    n = n * 2;
+    return n;
+}
+
+int mutate_via_ref(&mut int p) {
+    *p = *p * 2;
+    return 0;
+}
+
+int main() {
+    mut int x := 10;
+    print_str("start: "); print_int(x); println();
+    mutate_local(x);
+    print_str("after mutate_local: "); print_int(x); println();
+    mutate_via_ref(&mut x);
+    print_str("after mutate_via_ref: "); print_int(x); println();
+    return 0;
+}

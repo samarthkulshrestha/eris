@@ -1,0 +1,20 @@
+---
+--- title: Maximum value in an int array
+--- description: Walk an arr[int] with a while loop, comparing each element to a running maximum.
+--- expected_output: |
+---   9
+--- tags: [arrays, indexing, len]
+---
+
+int main() {
+    arr[int] nums := [3, 1, 4, 1, 5, 9, 2, 6];
+    mut int max_val := nums[0];
+    mut int i := 1;
+    while i < len(nums) {
+        if nums[i] > max_val { max_val = nums[i]; }
+        i = i + 1;
+    }
+    print_int(max_val);
+    println();
+    return 0;
+}

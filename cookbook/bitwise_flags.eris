@@ -1,0 +1,17 @@
+---
+--- title: Bitwise flag pack and unpack
+--- description: Set two flags by OR-ing 1 and 2, then test each bit with & and a shift.
+--- expected_output: |
+---   flag_a: 1
+---   flag_b: 1
+--- tags: [bitwise, operators]
+---
+
+int main() {
+    int packed := 1 | 2;
+    int flag_a := packed & 1;
+    int flag_b := (packed >> 1) & 1;
+    print_str("flag_a: "); print_int(flag_a); println();
+    print_str("flag_b: "); print_int(flag_b); println();
+    return 0;
+}

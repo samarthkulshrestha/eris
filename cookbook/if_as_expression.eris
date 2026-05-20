@@ -1,0 +1,15 @@
+---
+--- title: If as an expression, bound to a let
+--- description: Use if/else as an expression on the right-hand side of := to pick between two int values.
+--- expected_output: |
+---   100
+--- tags: [expressions, if]
+---
+
+int main() {
+    int x := 7;
+    int label := if x > 5 { 100 } else { 200 };
+    print_int(label);
+    println();
+    return 0;
+}

@@ -1,5 +1,73 @@
 [
   {
+    "id": "array_max",
+    "title": "Maximum value in an int array",
+    "description": "Walk an arr[int] with a while loop, comparing each element to a running maximum.",
+    "expected_output": "9\n",
+    "stdin": "",
+    "tags": [
+      "arrays",
+      "indexing",
+      "len"
+    ],
+    "file": "cookbook/array_max.eris",
+    "source": "---\n--- title: Maximum value in an int array\n--- description: Walk an arr[int] with a while loop, comparing each element to a running maximum.\n--- expected_output: |\n---   9\n--- tags: [arrays, indexing, len]\n---\n\nint main() {\n    arr[int] nums := [3, 1, 4, 1, 5, 9, 2, 6];\n    mut int max_val := nums[0];\n    mut int i := 1;\n    while i < len(nums) {\n        if nums[i] > max_val { max_val = nums[i]; }\n        i = i + 1;\n    }\n    print_int(max_val);\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "bitwise_flags",
+    "title": "Bitwise flag pack and unpack",
+    "description": "Set two flags by OR-ing 1 and 2, then test each bit with & and a shift.",
+    "expected_output": "flag_a: 1\nflag_b: 1\n",
+    "stdin": "",
+    "tags": [
+      "bitwise",
+      "operators"
+    ],
+    "file": "cookbook/bitwise_flags.eris",
+    "source": "---\n--- title: Bitwise flag pack and unpack\n--- description: Set two flags by OR-ing 1 and 2, then test each bit with & and a shift.\n--- expected_output: |\n---   flag_a: 1\n---   flag_b: 1\n--- tags: [bitwise, operators]\n---\n\nint main() {\n    int packed := 1 | 2;\n    int flag_a := packed & 1;\n    int flag_b := (packed >> 1) & 1;\n    print_str(\"flag_a: \"); print_int(flag_a); println();\n    print_str(\"flag_b: \"); print_int(flag_b); println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "bool_short_circuit",
+    "title": "Short-circuiting && in a guard",
+    "description": "&& evaluates left to right and skips the right operand when the left is false. Used here to safely guard a subsequent comparison.",
+    "expected_output": "safe\n",
+    "stdin": "",
+    "tags": [
+      "bool",
+      "short-circuit",
+      "logic"
+    ],
+    "file": "cookbook/bool_short_circuit.eris",
+    "source": "---\n--- title: Short-circuiting && in a guard\n--- description: && evaluates left to right and skips the right operand when the left is false. Used here to safely guard a subsequent comparison.\n--- expected_output: |\n---   safe\n--- tags: [bool, short-circuit, logic]\n---\n\nint main() {\n    int n := 0;\n    if n != 0 && (10 / n) > 0 {\n        print_str(\"would have divided by zero\");\n    } else {\n        print_str(\"safe\");\n    }\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "char_arithmetic",
+    "title": "Char arithmetic via print_char",
+    "description": "Step through three consecutive characters by emitting them with print_char.",
+    "expected_output": "abc\n",
+    "stdin": "",
+    "tags": [
+      "char",
+      "builtins"
+    ],
+    "file": "cookbook/char_arithmetic.eris",
+    "source": "---\n--- title: Char arithmetic via print_char\n--- description: Step through three consecutive characters by emitting them with print_char.\n--- expected_output: |\n---   abc\n--- tags: [char, builtins]\n---\n\nint main() {\n    print_char('a');\n    print_char('b');\n    print_char('c');\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "counter",
+    "title": "While with break, printing each step",
+    "description": "Increment a mut int inside while true, break on a condition. Each value is printed on its own line.",
+    "expected_output": "0\n1\n2\n3\n4\n",
+    "stdin": "",
+    "tags": [
+      "while",
+      "break",
+      "control-flow"
+    ],
+    "file": "cookbook/counter.eris",
+    "source": "---\n--- title: While with break, printing each step\n--- description: Increment a mut int inside while true, break on a condition. Each value is printed on its own line.\n--- expected_output: |\n---   0\n---   1\n---   2\n---   3\n---   4\n--- tags: [while, break, control-flow]\n---\n\nint main() {\n    mut int n := 0;\n    while true {\n        if n >= 5 { break; }\n        print_int(n);\n        println();\n        n = n + 1;\n    }\n    return 0;\n}\n"
+  },
+  {
     "id": "factorial",
     "title": "Recursive factorial",
     "description": "Recursion with if/else as the base case.",
@@ -11,6 +79,100 @@
     ],
     "file": "cookbook/factorial.eris",
     "source": "---\n--- title: Recursive factorial\n--- description: Recursion with if/else as the base case.\n--- expected_output: |\n---   720\n--- tags: [recursion, control-flow]\n---\n\nint factorial(int n) {\n    if n <= 1 { return 1; } else { return n * factorial(n - 1); }\n}\n\nint main() {\n    print_int(factorial(6));\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "if_as_expression",
+    "title": "If as an expression, bound to a let",
+    "description": "Use if/else as an expression on the right-hand side of := to pick between two int values.",
+    "expected_output": "100\n",
+    "stdin": "",
+    "tags": [
+      "expressions",
+      "if"
+    ],
+    "file": "cookbook/if_as_expression.eris",
+    "source": "---\n--- title: If as an expression, bound to a let\n--- description: Use if/else as an expression on the right-hand side of := to pick between two int values.\n--- expected_output: |\n---   100\n--- tags: [expressions, if]\n---\n\nint main() {\n    int x := 7;\n    int label := if x > 5 { 100 } else { 200 };\n    print_int(label);\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "insertion_sort",
+    "title": "Insertion sort over a 6-element int array",
+    "description": "Sort [5, 2, 4, 6, 1, 3] in place; print the sorted result, one element per line.",
+    "expected_output": "1\n2\n3\n4\n5\n6\n",
+    "stdin": "",
+    "tags": [
+      "arrays",
+      "sorting",
+      "algorithms"
+    ],
+    "file": "cookbook/insertion_sort.eris",
+    "source": "---\n--- title: Insertion sort over a 6-element int array\n--- description: Sort [5, 2, 4, 6, 1, 3] in place; print the sorted result, one element per line.\n--- expected_output: |\n---   1\n---   2\n---   3\n---   4\n---   5\n---   6\n--- tags: [arrays, sorting, algorithms]\n---\n\nint main() {\n    mut arr[int] a := [5, 2, 4, 6, 1, 3];\n    mut int i := 1;\n    while i < len(a) {\n        mut int j := i;\n        while j > 0 {\n            mut int prev := j - 1;\n            if a[prev] > a[j] {\n                mut int tmp := a[prev];\n                a[prev] = a[j];\n                a[j] = tmp;\n                j = j - 1;\n            } else {\n                j = 0;\n            }\n        }\n        i = i + 1;\n    }\n    mut int k := 0;\n    while k < len(a) {\n        print_int(a[k]);\n        println();\n        k = k + 1;\n    }\n    return 0;\n}\n"
+  },
+  {
+    "id": "mut_vs_ref_param",
+    "title": "mut int parameter vs &mut int parameter",
+    "description": "mut int n mutates a local copy. &mut int p mutates through the caller's variable. The caller prints x before and after each call.",
+    "expected_output": "start: 10\nafter mutate_local: 10\nafter mutate_via_ref: 20\n",
+    "stdin": "",
+    "tags": [
+      "references",
+      "mutability",
+      "idioms"
+    ],
+    "file": "cookbook/mut_vs_ref_param.eris",
+    "source": "---\n--- title: mut int parameter vs &mut int parameter\n--- description: mut int n mutates a local copy. &mut int p mutates through the caller's variable. The caller prints x before and after each call.\n--- expected_output: |\n---   start: 10\n---   after mutate_local: 10\n---   after mutate_via_ref: 20\n--- tags: [references, mutability, idioms]\n---\n\nint mutate_local(mut int n) {\n    n = n * 2;\n    return n;\n}\n\nint mutate_via_ref(&mut int p) {\n    *p = *p * 2;\n    return 0;\n}\n\nint main() {\n    mut int x := 10;\n    print_str(\"start: \"); print_int(x); println();\n    mutate_local(x);\n    print_str(\"after mutate_local: \"); print_int(x); println();\n    mutate_via_ref(&mut x);\n    print_str(\"after mutate_via_ref: \"); print_int(x); println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "read_int_echo",
+    "title": "Echo an integer from stdin",
+    "description": "Reads one int with read_int and prints it back.",
+    "expected_output": "42\n",
+    "stdin": "42\n",
+    "tags": [
+      "io",
+      "read_int"
+    ],
+    "file": "cookbook/read_int_echo.eris",
+    "source": "---\n--- title: Echo an integer from stdin\n--- description: Reads one int with read_int and prints it back.\n--- stdin: |\n---   42\n--- expected_output: |\n---   42\n--- tags: [io, read_int]\n---\n\nint main() {\n    int n := read_int();\n    print_int(n);\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "recursive_gcd",
+    "title": "Euclidean GCD via recursion",
+    "description": "Greatest common divisor with the standard recurrence: gcd(a, 0) = a; gcd(a, b) = gcd(b, a % b).",
+    "expected_output": "14\n",
+    "stdin": "",
+    "tags": [
+      "recursion",
+      "modulo",
+      "algorithms"
+    ],
+    "file": "cookbook/recursive_gcd.eris",
+    "source": "---\n--- title: Euclidean GCD via recursion\n--- description: Greatest common divisor with the standard recurrence: gcd(a, 0) = a; gcd(a, b) = gcd(b, a % b).\n--- expected_output: |\n---   14\n--- tags: [recursion, modulo, algorithms]\n---\n\nint gcd(int a, int b) {\n    if b == 0 { return a; } else { return gcd(b, a % b); }\n}\n\nint main() {\n    print_int(gcd(98, 56));\n    println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "ref_swap",
+    "title": "Swap two ints via &mut",
+    "description": "A swap function takes two &mut int parameters and exchanges the values they point to. The caller prints x then y before and after.",
+    "expected_output": "before: 1 2\nafter: 2 1\n",
+    "stdin": "",
+    "tags": [
+      "references",
+      "mutability"
+    ],
+    "file": "cookbook/ref_swap.eris",
+    "source": "---\n--- title: Swap two ints via &mut\n--- description: A swap function takes two &mut int parameters and exchanges the values they point to. The caller prints x then y before and after.\n--- expected_output: |\n---   before: 1 2\n---   after: 2 1\n--- tags: [references, mutability]\n---\n\nint swap(&mut int a, &mut int b) {\n    int tmp := *a;\n    *a = *b;\n    *b = tmp;\n    return 0;\n}\n\nint main() {\n    mut int x := 1;\n    mut int y := 2;\n    print_str(\"before: \");\n    print_int(x); print_str(\" \"); print_int(y); println();\n    swap(&mut x, &mut y);\n    print_str(\"after: \");\n    print_int(x); print_str(\" \"); print_int(y); println();\n    return 0;\n}\n"
+  },
+  {
+    "id": "string_greeting",
+    "title": "print_str with multiple lines",
+    "description": "Print a two-line greeting using print_str and println.",
+    "expected_output": "hello, world!\nhow are you?\n",
+    "stdin": "",
+    "tags": [
+      "strings",
+      "print_str"
+    ],
+    "file": "cookbook/string_greeting.eris",
+    "source": "---\n--- title: print_str with multiple lines\n--- description: Print a two-line greeting using print_str and println.\n--- expected_output: |\n---   hello, world!\n---   how are you?\n--- tags: [strings, print_str]\n---\n\nint main() {\n    print_str(\"hello, world!\");\n    println();\n    print_str(\"how are you?\");\n    println();\n    return 0;\n}\n"
   },
   {
     "id": "sum_to",

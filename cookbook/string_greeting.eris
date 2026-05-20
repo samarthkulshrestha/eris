@@ -1,0 +1,16 @@
+---
+--- title: print_str with multiple lines
+--- description: Print a two-line greeting using print_str and println.
+--- expected_output: |
+---   hello, world!
+---   how are you?
+--- tags: [strings, print_str]
+---
+
+int main() {
+    print_str("hello, world!");
+    println();
+    print_str("how are you?");
+    println();
+    return 0;
+}

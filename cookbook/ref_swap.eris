@@ -1,0 +1,26 @@
+---
+--- title: Swap two ints via &mut
+--- description: A swap function takes two &mut int parameters and exchanges the values they point to. The caller prints x then y before and after.
+--- expected_output: |
+---   before: 1 2
+---   after: 2 1
+--- tags: [references, mutability]
+---
+
+int swap(&mut int a, &mut int b) {
+    int tmp := *a;
+    *a = *b;
+    *b = tmp;
+    return 0;
+}
+
+int main() {
+    mut int x := 1;
+    mut int y := 2;
+    print_str("before: ");
+    print_int(x); print_str(" "); print_int(y); println();
+    swap(&mut x, &mut y);
+    print_str("after: ");
+    print_int(x); print_str(" "); print_int(y); println();
+    return 0;
+}
