@@ -98,10 +98,10 @@ impl ErrorCode {
 
     pub fn fields(self) -> &'static [&'static str] {
         match self {
-            ErrorCode::E0001 => &["ident"],
+            ErrorCode::E0001 => &["identifier"],
             ErrorCode::E0002 => &["token"],
             ErrorCode::E0101 => &["expected", "found"],
-            ErrorCode::E0102 => &["inner"],
+            ErrorCode::E0102 => &["detail"],
             ErrorCode::E0201 => &["name"],
             ErrorCode::E0202 => &["name"],
             ErrorCode::E0203 => &["expected", "found"],
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn error_codes_have_field_lists() {
-        assert_eq!(ErrorCode::E0001.fields(), &["ident"]);
+        assert_eq!(ErrorCode::E0001.fields(), &["identifier"]);
         assert_eq!(ErrorCode::E0203.fields(), &["expected", "found"]);
         assert_eq!(ErrorCode::E0207.fields(), &[] as &[&str]);
         assert_eq!(ErrorCode::E0221.fields(), &["array_size", "index"]);
