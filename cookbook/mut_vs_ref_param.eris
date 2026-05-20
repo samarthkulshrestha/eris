@@ -5,7 +5,7 @@
 ---   start: 10
 ---   after mutate_local: 10
 ---   after mutate_via_ref: 20
---- tags: [references, mutability, idioms]
+--- tags: [references, mutability, idioms, E0224, E0225]
 ---
 
 int mutate_local(mut int n) {

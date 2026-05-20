@@ -4,7 +4,7 @@
 --- expected_output: |
 ---   before: 1 2
 ---   after: 2 1
---- tags: [references, mutability]
+--- tags: [references, mutability, E0224, E0225]
 ---
 
 int swap(&mut int a, &mut int b) {

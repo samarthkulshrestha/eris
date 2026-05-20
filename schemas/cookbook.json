@@ -8,10 +8,12 @@
     "tags": [
       "arrays",
       "indexing",
-      "len"
+      "len",
+      "E0221",
+      "E0222"
     ],
     "file": "cookbook/array_max.eris",
-    "source": "---\n--- title: Maximum value in an int array\n--- description: Walk an arr[int] with a while loop, comparing each element to a running maximum.\n--- expected_output: |\n---   9\n--- tags: [arrays, indexing, len]\n---\n\nint main() {\n    arr[int] nums := [3, 1, 4, 1, 5, 9, 2, 6];\n    mut int max_val := nums[0];\n    mut int i := 1;\n    while i < len(nums) {\n        if nums[i] > max_val { max_val = nums[i]; }\n        i = i + 1;\n    }\n    print_int(max_val);\n    println();\n    return 0;\n}\n"
+    "source": "---\n--- title: Maximum value in an int array\n--- description: Walk an arr[int] with a while loop, comparing each element to a running maximum.\n--- expected_output: |\n---   9\n--- tags: [arrays, indexing, len, E0221, E0222]\n---\n\nint main() {\n    arr[int] nums := [3, 1, 4, 1, 5, 9, 2, 6];\n    mut int max_val := nums[0];\n    mut int i := 1;\n    while i < len(nums) {\n        if nums[i] > max_val { max_val = nums[i]; }\n        i = i + 1;\n    }\n    print_int(max_val);\n    println();\n    return 0;\n}\n"
   },
   {
     "id": "bitwise_flags",
@@ -116,10 +118,12 @@
     "tags": [
       "references",
       "mutability",
-      "idioms"
+      "idioms",
+      "E0224",
+      "E0225"
     ],
     "file": "cookbook/mut_vs_ref_param.eris",
-    "source": "---\n--- title: mut int parameter vs &mut int parameter\n--- description: mut int n mutates a local copy. &mut int p mutates through the caller's variable. The caller prints x before and after each call.\n--- expected_output: |\n---   start: 10\n---   after mutate_local: 10\n---   after mutate_via_ref: 20\n--- tags: [references, mutability, idioms]\n---\n\nint mutate_local(mut int n) {\n    n = n * 2;\n    return n;\n}\n\nint mutate_via_ref(&mut int p) {\n    *p = *p * 2;\n    return 0;\n}\n\nint main() {\n    mut int x := 10;\n    print_str(\"start: \"); print_int(x); println();\n    mutate_local(x);\n    print_str(\"after mutate_local: \"); print_int(x); println();\n    mutate_via_ref(&mut x);\n    print_str(\"after mutate_via_ref: \"); print_int(x); println();\n    return 0;\n}\n"
+    "source": "---\n--- title: mut int parameter vs &mut int parameter\n--- description: mut int n mutates a local copy. &mut int p mutates through the caller's variable. The caller prints x before and after each call.\n--- expected_output: |\n---   start: 10\n---   after mutate_local: 10\n---   after mutate_via_ref: 20\n--- tags: [references, mutability, idioms, E0224, E0225]\n---\n\nint mutate_local(mut int n) {\n    n = n * 2;\n    return n;\n}\n\nint mutate_via_ref(&mut int p) {\n    *p = *p * 2;\n    return 0;\n}\n\nint main() {\n    mut int x := 10;\n    print_str(\"start: \"); print_int(x); println();\n    mutate_local(x);\n    print_str(\"after mutate_local: \"); print_int(x); println();\n    mutate_via_ref(&mut x);\n    print_str(\"after mutate_via_ref: \"); print_int(x); println();\n    return 0;\n}\n"
   },
   {
     "id": "negative_E0101_for_non_range",
@@ -223,10 +227,12 @@
     "stdin": "",
     "tags": [
       "references",
-      "mutability"
+      "mutability",
+      "E0224",
+      "E0225"
     ],
     "file": "cookbook/ref_swap.eris",
-    "source": "---\n--- title: Swap two ints via &mut\n--- description: A swap function takes two &mut int parameters and exchanges the values they point to. The caller prints x then y before and after.\n--- expected_output: |\n---   before: 1 2\n---   after: 2 1\n--- tags: [references, mutability]\n---\n\nint swap(&mut int a, &mut int b) {\n    int tmp := *a;\n    *a = *b;\n    *b = tmp;\n    return 0;\n}\n\nint main() {\n    mut int x := 1;\n    mut int y := 2;\n    print_str(\"before: \");\n    print_int(x); print_str(\" \"); print_int(y); println();\n    swap(&mut x, &mut y);\n    print_str(\"after: \");\n    print_int(x); print_str(\" \"); print_int(y); println();\n    return 0;\n}\n"
+    "source": "---\n--- title: Swap two ints via &mut\n--- description: A swap function takes two &mut int parameters and exchanges the values they point to. The caller prints x then y before and after.\n--- expected_output: |\n---   before: 1 2\n---   after: 2 1\n--- tags: [references, mutability, E0224, E0225]\n---\n\nint swap(&mut int a, &mut int b) {\n    int tmp := *a;\n    *a = *b;\n    *b = tmp;\n    return 0;\n}\n\nint main() {\n    mut int x := 1;\n    mut int y := 2;\n    print_str(\"before: \");\n    print_int(x); print_str(\" \"); print_int(y); println();\n    swap(&mut x, &mut y);\n    print_str(\"after: \");\n    print_int(x); print_str(\" \"); print_int(y); println();\n    return 0;\n}\n"
   },
   {
     "id": "string_greeting",

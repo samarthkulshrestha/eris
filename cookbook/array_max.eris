@@ -3,7 +3,7 @@
 --- description: Walk an arr[int] with a while loop, comparing each element to a running maximum.
 --- expected_output: |
 ---   9
---- tags: [arrays, indexing, len]
+--- tags: [arrays, indexing, len, E0221, E0222]
 ---
 
 int main() {
