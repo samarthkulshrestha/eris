@@ -135,6 +135,13 @@ pub fn parse_entry(path: &Path, source: &str) -> Result<CookbookEntry, CookbookE
                 content.push('\n');
                 i += 1;
             }
+            if content.is_empty() {
+                return Err(parse_err(
+                    path,
+                    line_no,
+                    &format!("`{}` block scalar has no content lines", key),
+                ));
+            }
             match key {
                 "expected_output" => expected_output = Some(content),
                 "stdin" => stdin = Some(content),
@@ -378,5 +385,17 @@ int main() { return 0; }
         let entries = load_all_entries(dir.path()).expect("load");
         let ids: Vec<&str> = entries.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, vec!["a_one", "b_one"]);
+    }
+
+    #[test]
+    fn rejects_missing_closing_marker() {
+        let source = "---\n--- title: X\n--- description: Y\n--- expected_output: |\n---   Z\n";
+        let path = PathBuf::from("cookbook/x.eris");
+        let err = parse_entry(&path, source).expect_err("should fail");
+        assert!(
+            format!("{}", err).contains("missing closing"),
+            "got: {}",
+            err
+        );
     }
 }
