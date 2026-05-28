@@ -1,4 +1,5 @@
 use std::env;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process;
 
@@ -21,6 +22,30 @@ fn print_usage(prog: &str) {
         "       {} --explain <error_code> [--format text|json]",
         prog
     );
+}
+
+/// Remove the leading `---`-delimited doc-comment block from a cookbook entry's
+/// source. Returns the post-header slice (the actual Eris code body).
+fn strip_frontmatter(source: &str) -> &str {
+    let mut iter = source.lines();
+    // First line should be `---`. Skip it.
+    let first = iter.next();
+    if first.map(|l| l.trim()) != Some("---") {
+        // Source doesn't have a doc-comment header — return as-is.
+        return source;
+    }
+    // Scan to find the closing `---`. Track byte offset.
+    let mut consumed = first.unwrap().len() + 1; // +1 for the newline
+    for line in iter {
+        consumed += line.len() + 1;
+        if line.trim() == "---" {
+            // Found closing marker. Skip any immediately-following blank lines.
+            let remainder = &source[consumed..];
+            return remainder.trim_start_matches('\n');
+        }
+    }
+    // No closing marker found — return original.
+    source
 }
 
 fn print_explained_text(
@@ -49,7 +74,12 @@ fn print_explained_text(
                 writeln!(out, "    {}", line)?;
             }
             writeln!(out)?;
-            for line in entry.source.lines() {
+            // Strip the leading doc-comment header. Cookbook entries always start with
+            // a bare `---` line, contain metadata lines starting with `--- `, and end
+            // the header with another bare `---`. Find the closing `---` and skip past
+            // it (and any leading blank line).
+            let body = strip_frontmatter(&entry.source);
+            for line in body.lines() {
                 writeln!(out, "      {}", line)?;
             }
             writeln!(out)?;
@@ -84,7 +114,11 @@ fn run_explain(code: &str, format: eris_compiler::OutputFormat) -> ! {
             eris_compiler::OutputFormat::Json => {
                 match serde_json::to_string_pretty(&explained) {
                     Ok(json) => {
-                        println!("{}", json);
+                        let mut stdout = std::io::stdout().lock();
+                        if let Err(e) = writeln!(stdout, "{}", json) {
+                            eprintln!("error: write to stdout failed: {}", e);
+                            process::exit(1);
+                        }
                         process::exit(0);
                     }
                     Err(e) => {
@@ -255,5 +289,28 @@ fn main() {
                 process::exit(1);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strip_frontmatter_removes_header_and_blank_line() {
+        let source = "---\n--- title: T\n--- description: D\n--- expected_output: |\n---   x\n---\n\nint main() { return 0; }\n";
+        assert_eq!(strip_frontmatter(source), "int main() { return 0; }\n");
+    }
+
+    #[test]
+    fn strip_frontmatter_returns_source_when_no_header() {
+        let source = "int main() { return 0; }\n";
+        assert_eq!(strip_frontmatter(source), source);
+    }
+
+    #[test]
+    fn strip_frontmatter_handles_no_blank_line_after_header() {
+        let source = "---\n--- title: T\n---\nint main() { return 0; }\n";
+        assert_eq!(strip_frontmatter(source), "int main() { return 0; }\n");
     }
 }

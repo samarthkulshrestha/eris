@@ -97,3 +97,35 @@ fn explain_json_format() {
         .expect("cookbook_entries array");
     assert!(!entries.is_empty(), "expected at least one cookbook entry");
 }
+
+#[test]
+fn explain_with_emit_ir_rejected() {
+    let output = run(&["--emit-ir", "--explain", "E0203"]);
+    assert!(
+        !output.status.success(),
+        "expected nonzero exit, got {:?}",
+        output.status
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("cannot be combined with --emit-ir"),
+        "stderr missing emit-ir mutex message, got: {}",
+        stderr
+    );
+}
+
+#[test]
+fn explain_with_output_dir_rejected() {
+    let output = run(&["--explain", "E0203", "-o", "/tmp"]);
+    assert!(
+        !output.status.success(),
+        "expected nonzero exit, got {:?}",
+        output.status
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("cannot be combined with -o"),
+        "stderr missing -o mutex message, got: {}",
+        stderr
+    );
+}
