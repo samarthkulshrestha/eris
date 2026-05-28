@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use eris_compiler::cookbook::CookbookEntry;
+use eris_compiler::explain::{explain_error_lookup, ExplainError};
 use rmcp::{
     ErrorData,
     handler::server::wrapper::Parameters,
@@ -34,16 +35,6 @@ pub struct CookbookIndexEntry {
     pub title: String,
     pub description: String,
     pub tags: Vec<String>,
-}
-
-/// Output of `explain_error`: card metadata for the code plus matching cookbook entries.
-#[derive(Debug, Serialize)]
-pub struct ExplainedError {
-    pub code: String,
-    pub name: String,
-    pub fields: Vec<String>,
-    pub hint: Option<String>,
-    pub cookbook_entries: Vec<CookbookEntry>,
 }
 
 // ── Parameter structs for tools that take input ──────────────────────────────
@@ -148,61 +139,15 @@ impl ErisMcpServer {
         &self,
         Parameters(params): Parameters<ExplainErrorParams>,
     ) -> Result<String, ErrorData> {
-        let card: serde_json::Value =
-            serde_json::from_str(&self.card_json).map_err(|e| {
-                ErrorData::internal_error(format!("failed to parse language card: {e}"), None)
+        let explained = explain_error_lookup(&self.card_json, &self.cookbook, &params.code)
+            .map_err(|e| match e {
+                ExplainError::UnknownCode { .. } => {
+                    ErrorData::invalid_params(e.to_string(), None)
+                }
+                ExplainError::MalformedCard(_) => {
+                    ErrorData::internal_error(e.to_string(), None)
+                }
             })?;
-
-        let entries = card
-            .get("error_codes")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                ErrorData::internal_error("card missing error_codes field", None)
-            })?;
-
-        let card_entry = entries
-            .iter()
-            .find(|e| e.get("code").and_then(|c| c.as_str()) == Some(params.code.as_str()))
-            .ok_or_else(|| {
-                ErrorData::invalid_params(
-                    format!("unknown error code `{}`", params.code),
-                    None,
-                )
-            })?;
-
-        let name = card_entry
-            .get("name")
-            .and_then(|n| n.as_str())
-            .unwrap_or("")
-            .to_string();
-        let fields: Vec<String> = card_entry
-            .get("fields")
-            .and_then(|f| f.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
-        let hint = card_entry
-            .get("hint")
-            .and_then(|h| h.as_str())
-            .map(String::from);
-
-        let cookbook_entries: Vec<CookbookEntry> = self
-            .cookbook
-            .iter()
-            .filter(|e| e.tags.iter().any(|t| t == &params.code))
-            .cloned()
-            .collect();
-
-        let explained = ExplainedError {
-            code: params.code,
-            name,
-            fields,
-            hint,
-            cookbook_entries,
-        };
         serde_json::to_string_pretty(&explained).map_err(|e| {
             ErrorData::internal_error(e.to_string(), None)
         })
