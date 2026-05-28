@@ -6,6 +6,7 @@ use std::process::Command;
 pub mod analyzer;
 pub(crate) mod codegen;
 pub mod cookbook;
+pub mod explain;
 pub mod diagnostics;
 pub(crate) mod error_display;
 pub mod lexer;
