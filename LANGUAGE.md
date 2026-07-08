@@ -61,6 +61,8 @@ Operators are listed below from **lowest to highest** precedence. Within each gr
 
 **Important precedence note.** Bitwise operators (`|`, `^`, `&`, `<<`, `>>`) sit _above_ comparisons, matching Rust's precedence rules rather than C's. This means `a & b == c` parses as `(a & b) == c`.
 
+Arithmetic operators (`+`, `-`, `*`, `/`, `%`) are defined only for `int` and `float` operands. Comparison operators additionally accept `char`, and `==`/`!=` accept `bool`. Applying an operator to any other operand type (such as `str` or an array) is E0227.
+
 Additional special tokens that are not binary operators:
 
 | Token | Name            | Usage                                               |
@@ -422,7 +424,7 @@ To print each value on its own line, call `println()` after the `print_*` functi
 
 ## 6. Error Codes
 
-Diagnostics carry a structured code in the range E0001–E0226. The phase column is derived from the numeric range: codes E0001–E0099 are lexer errors, E0100–E0199 are parser errors, and E0200–E0299 are analyzer errors.
+Diagnostics carry a structured code in the range E0001–E0227. The phase column is derived from the numeric range: codes E0001–E0099 are lexer errors, E0100–E0199 are parser errors, and E0200–E0299 are analyzer errors.
 
 | Code   | Name                   | Phase    | Fields                           |
 |--------|------------------------|----------|----------------------------------|
@@ -447,6 +449,7 @@ Diagnostics carry a structured code in the range E0001–E0226. The phase column
 | E0224  | TakeMutRefOfImmutable  | analyzer | `name`                           |
 | E0225  | DerefOfNonReference    | analyzer | `found`                          |
 | E0226  | ReturnsLocalReference  | analyzer | _(none)_                         |
+| E0227  | UnsupportedOperandType | analyzer | `op`, `operand_type`             |
 
 Diagnostics are emitted to stderr in human-readable text by default. Pass `--format=json` to receive a JSON array conforming to `schemas/diagnostic-envelope.json`. The JSON form includes `code`, `severity`, `message`, `location`, and a `fields` object whose keys match the "Fields" column above.
 

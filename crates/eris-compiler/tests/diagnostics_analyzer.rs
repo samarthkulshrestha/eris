@@ -246,3 +246,18 @@ fn undeclared_var_does_not_trigger_spurious_type_mismatch() {
     assert!(codes.contains(&"E0201"), "expected E0201, got {:?}", codes);
     assert!(!codes.contains(&"E0203"), "should not emit spurious E0203, got {:?}", codes);
 }
+
+#[test]
+fn unsupported_operand_type_maps_to_e0227() {
+    let err = AnalyzeError::new(
+        AnalyzeErrorKind::UnsupportedOperandType {
+            op: "+",
+            operand_type: TypeKind::Str,
+        },
+        SourceLocation::default(),
+    );
+    let diag: Diagnostic = err.into();
+    assert_eq!(diag.code, ErrorCode::E0227);
+    assert_eq!(diag.fields.get("op").unwrap(), "+");
+    assert_eq!(diag.fields.get("operand_type").unwrap(), "str");
+}

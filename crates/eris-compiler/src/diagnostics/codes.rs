@@ -33,6 +33,7 @@ pub enum ErrorCode {
     E0224,
     E0225,
     E0226,
+    E0227,
 }
 
 /// Single source of truth for error code string values.
@@ -59,6 +60,7 @@ pub const ALL_CODES: &[(ErrorCode, &str)] = &[
     (ErrorCode::E0224, "E0224"),
     (ErrorCode::E0225, "E0225"),
     (ErrorCode::E0226, "E0226"),
+    (ErrorCode::E0227, "E0227"),
 ];
 
 impl ErrorCode {
@@ -94,6 +96,7 @@ impl ErrorCode {
             ErrorCode::E0224 => "TakeMutRefOfImmutable",
             ErrorCode::E0225 => "DerefOfNonReference",
             ErrorCode::E0226 => "ReturnsLocalReference",
+            ErrorCode::E0227 => "UnsupportedOperandType",
         }
     }
 
@@ -120,6 +123,7 @@ impl ErrorCode {
             ErrorCode::E0224 => &["name"],
             ErrorCode::E0225 => &["found"],
             ErrorCode::E0226 => &[],
+            ErrorCode::E0227 => &["op", "operand_type"],
         }
     }
 
@@ -146,6 +150,7 @@ impl ErrorCode {
             ErrorCode::E0224 => Some("declare the variable with 'mut' to allow mutable references"),
             ErrorCode::E0225 => Some("take a reference with '&' or '&mut' before dereferencing"),
             ErrorCode::E0226 => Some("return the value itself, or pass the destination as a '&mut' parameter"),
+            ErrorCode::E0227 => Some("arithmetic operators require 'int' or 'float' operands; comparison operators additionally accept 'char' and 'bool'"),
         }
     }
 }

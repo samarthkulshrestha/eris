@@ -357,6 +357,15 @@
       "name": "ReturnsLocalReference",
       "fields": [],
       "hint": "return the value itself, or pass the destination as a '&mut' parameter"
+    },
+    {
+      "code": "E0227",
+      "name": "UnsupportedOperandType",
+      "fields": [
+        "op",
+        "operand_type"
+      ],
+      "hint": "arithmetic operators require 'int' or 'float' operands; comparison operators additionally accept 'char' and 'bool'"
     }
   ]
 }

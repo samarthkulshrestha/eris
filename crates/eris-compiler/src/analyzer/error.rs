@@ -43,6 +43,10 @@ pub enum AnalyzeErrorKind {
         found: TypeKind,
     },
     ReturnsLocalReference,
+    UnsupportedOperandType {
+        op: &'static str,
+        operand_type: TypeKind,
+    },
 }
 
 impl AnalyzeError {
@@ -203,6 +207,22 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
                 "function returns a reference to one of its own local variables".to_string(),
                 Map::new(),
             ),
+            AnalyzeErrorKind::UnsupportedOperandType { op, operand_type } => {
+                let mut fields = Map::new();
+                fields.insert("op".to_string(), Value::String(op.to_string()));
+                fields.insert(
+                    "operand_type".to_string(),
+                    Value::String(operand_type.to_string()),
+                );
+                (
+                    ErrorCode::E0227,
+                    format!(
+                        "operator '{}' is not supported for operands of type '{}'",
+                        op, operand_type
+                    ),
+                    fields,
+                )
+            }
         };
 
         Diagnostic {
@@ -237,6 +257,7 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::TakeMutRefOfImmutable { .. } => "mutable reference to immutable",
             AnalyzeErrorKind::DerefOfNonReference { .. } => "dereference of non-reference",
             AnalyzeErrorKind::ReturnsLocalReference => "returns reference to local",
+            AnalyzeErrorKind::UnsupportedOperandType { .. } => "unsupported operand type",
         }
     }
 
@@ -289,6 +310,12 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::ReturnsLocalReference => {
                 "Returning a reference to a local variable would leave a dangling pointer after the function returns".to_string()
             }
+            AnalyzeErrorKind::UnsupportedOperandType { op, operand_type } => {
+                format!(
+                    "Operator '{}' cannot be applied to operands of type '{}'",
+                    op, operand_type
+                )
+            }
         }
     }
 
@@ -340,6 +367,9 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::ReturnsLocalReference => {
                 Some("return the value itself, or pass the destination as a '&mut' parameter".to_string())
             }
+            AnalyzeErrorKind::UnsupportedOperandType { .. } => Some(
+                "arithmetic operators require 'int' or 'float' operands; comparison operators additionally accept 'char' and 'bool'".to_string(),
+            ),
             _ => None,
         }
     }
