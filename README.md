@@ -10,7 +10,7 @@ This is a research project in early development.
 
 **Version 0.8.0.** The language has a complete frontend (lexer → parser → semantic analyzer) and an LLVM IR backend that produces native binaries via `clang`. Programs can use built-in I/O (`print_int`, `print_str`, `print_bool`, `print_char`, `println`, `read_int`) and the standard control-flow constructs.
 
-The LLM-facing surface — structured diagnostics, a machine-readable language description, an MCP server exposing compiler internals as tool calls, an opinionated linter, and an LLM-grounded `--explain` flag — is the project's next focus and does not exist yet.
+The LLM-facing surface is largely built: structured diagnostics with stable error codes (`--format json`), a machine-readable language card (`schemas/language-card.json`), a verified cookbook (`schemas/cookbook.json`), an MCP server exposing the compiler as tool calls (`crates/eris-mcp`), and an LLM-grounded `--explain` flag. What does not exist yet is the *evidence*: a measured evaluation showing this surface helps a model write Eris better than plain documentation does. That evaluation is the project's current focus; the language itself is frozen at v0.8.0 until it lands.
 
 ## Design principles
 
@@ -112,7 +112,7 @@ crates/
 examples/            sample programs
 ```
 
-The compiler is a library first. Future tooling (MCP server, LLM diagnostic client, evaluation harness) will live as sibling crates that depend on `eris-compiler` and never reach into its internals.
+The compiler is a library first. The MCP server lives as a sibling crate (`crates/eris-mcp`) that depends on `eris-compiler` and never reaches into its internals; the evaluation harness lives in `eval/` (Python).
 
 ## Development
 
