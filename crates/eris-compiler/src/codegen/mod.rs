@@ -1615,4 +1615,50 @@ mod tests {
         );
         assert!(ir.contains("define i64 @increment(ptr"), "expected ptr parameter: {}", ir);
     }
+
+    /// Every binary-op program the analyzer ACCEPTS must make it through
+    /// codegen without an error or a panic. Guards the analyzer/codegen seam:
+    /// widening analyzer operator rules without codegen support fails here.
+    #[test]
+    fn analyzer_accepted_binary_ops_survive_codegen() {
+        let scalars = [
+            ("int", "1", "2"),
+            ("float", "1.0", "2.0"),
+            ("char", "'a'", "'b'"),
+            ("bool", "true", "false"),
+            ("str", "\"a\"", "\"b\""),
+        ];
+        let ops = [
+            "+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|",
+            "^", "<<", ">>", "&&", "||",
+        ];
+        for (ty, l, r) in scalars {
+            for op in ops {
+                let result_ty = match op {
+                    "==" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||" => "bool",
+                    "&" | "|" | "^" | "<<" | ">>" => "int",
+                    _ => ty,
+                };
+                let source = format!(
+                    "int main() {{ {ty} l := {l}; {ty} r := {r}; {result_ty} z := l {op} r; return 0; }}"
+                );
+                let mut lexer = Lexer::new(&source);
+                let tokens = lexer.tokenize().expect("lex");
+                let mut parser = Parser::new(tokens);
+                let program = parser.parse_program().expect("parse");
+                let mut analyzer = Analyzer::new();
+                if analyzer.analyze_program(&program).is_err() {
+                    continue; // analyzer rejected it — codegen never sees it
+                }
+                let context = Context::create();
+                let mut codegen = CodeGen::new(&context, "seam");
+                let generated = codegen.generate(&program);
+                assert!(
+                    generated.is_ok(),
+                    "analyzer accepted `{ty} {op} {ty}` but codegen failed: {:?}",
+                    generated.err()
+                );
+            }
+        }
+    }
 }
