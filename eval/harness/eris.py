@@ -22,13 +22,14 @@ def compile_eris(source: str, workdir: Path):
         capture_output=True, text=True, timeout=60,
     )
     if proc.returncode != 0:
-        return None, (proc.stderr + proc.stdout).strip()
+        return None, (proc.stderr + "\n" + proc.stdout).strip()
     return workdir / "prog", None
 
 
-def run_binary(binary: Path):
+def run_binary(binary: Path, timeout: int = 10):
     proc = subprocess.run(
-        [str(binary)], capture_output=True, text=True, timeout=10,
+        [str(binary)], capture_output=True, text=True, timeout=timeout,
+        stdin=subprocess.DEVNULL,
     )
     return proc.stdout, proc.returncode
 

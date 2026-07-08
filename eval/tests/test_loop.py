@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 from harness.loop import attempt_task
 from harness.model import MockModel
 from harness.conditions import render_plain
@@ -29,3 +26,20 @@ def test_loop_gives_up_at_max_turns():
     )
     assert result["solved"] is False
     assert result["turns"] == 3
+
+
+HANGING = "```eris\nint main() { mut int i := 0; while i < 1 { i = i - 1; } return 0; }\n```"
+
+
+def test_loop_survives_hanging_program(monkeypatch):
+    import functools
+    import harness.loop as loop_mod
+    from harness.eris import run_binary
+
+    monkeypatch.setattr(loop_mod, "run_binary", functools.partial(run_binary, timeout=1))
+    model = MockModel([HANGING])
+    result = attempt_task(
+        TASK, model, context="(no docs needed)", render_errors=render_plain, max_turns=1
+    )
+    assert result["solved"] is False
+    assert result["turns"] == 1

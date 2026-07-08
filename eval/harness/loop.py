@@ -1,4 +1,5 @@
 """Multi-turn repair loop: model writes a program, gets compiler/output feedback."""
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -21,18 +22,25 @@ def attempt_task(task, model, context, render_errors, max_turns=6):
         for turn in range(1, max_turns + 1):
             reply = model.complete(system, messages)
             source = extract_code(reply)
-            binary, err = compile_eris(source, workdir)
-            if err is None:
-                stdout, code = run_binary(binary)
-                if stdout == task["expected_stdout"] and code == 0:
-                    return {"solved": True, "turns": turn}
+            try:
+                binary, err = compile_eris(source, workdir)
+                if err is None:
+                    stdout, code = run_binary(binary)
+                    if stdout == task["expected_stdout"] and code == 0:
+                        return {"solved": True, "turns": turn}
+                    feedback = (
+                        "The program compiled but produced the wrong output.\n"
+                        f"Expected stdout:\n{task['expected_stdout']}\n"
+                        f"Actual stdout:\n{stdout}\n(exit code {code})"
+                    )
+                else:
+                    feedback = render_errors(err)
+            except subprocess.TimeoutExpired:
                 feedback = (
-                    "The program compiled but produced the wrong output.\n"
-                    f"Expected stdout:\n{task['expected_stdout']}\n"
-                    f"Actual stdout:\n{stdout}\n(exit code {code})"
+                    "The program did not finish within the time limit — it likely "
+                    "contains an infinite loop or blocks waiting for input. Fix it "
+                    "so it terminates."
                 )
-            else:
-                feedback = render_errors(err)
             messages.append({"role": "assistant", "content": reply})
             messages.append(
                 {"role": "user", "content": feedback + "\nFix the program. Reply with one complete ```eris code block."}
