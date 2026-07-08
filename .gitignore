@@ -2,6 +2,9 @@
 **/tags
 /docs/
 /CLAUDE.md
+/eval/.venv/
+__pycache__/
+.pytest_cache/
 
 # Compiled output of example programs (named after the source file stem)
 /01
