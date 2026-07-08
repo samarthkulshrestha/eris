@@ -489,6 +489,23 @@ impl Analyzer {
                                     },
                                     expression.location.clone(),
                                 ));
+                            } else {
+                                let allowed = match op {
+                                    BinOp::Eq | BinOp::Ne => matches!(
+                                        a,
+                                        TypeKind::Int | TypeKind::Float | TypeKind::Char | TypeKind::Bool
+                                    ),
+                                    _ => matches!(a, TypeKind::Int | TypeKind::Float | TypeKind::Char),
+                                };
+                                if !allowed {
+                                    self.errors.push(AnalyzeError::new(
+                                        AnalyzeErrorKind::UnsupportedOperandType {
+                                            op: bin_op_symbol(op),
+                                            operand_type: a.clone(),
+                                        },
+                                        expression.location.clone(),
+                                    ));
+                                }
                             }
                         }
                         Some(TypeKind::Bool)

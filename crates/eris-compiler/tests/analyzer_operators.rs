@@ -47,3 +47,36 @@ fn int_and_float_arithmetic_still_pass() {
     assert!(analyze("int main() { int c := 1 + 2; return 0; }").is_ok());
     assert!(analyze("int main() { float c := 1.0 + 2.0; return 0; }").is_ok());
 }
+
+#[test]
+fn str_equality_rejected_with_e0227() {
+    let result = analyze(
+        r#"int main() { str a := "x"; str b := "y"; bool c := a == b; return 0; }"#,
+    );
+    let errs = result.unwrap_err();
+    assert!(has_unsupported_op(&errs, "=="), "got {:?}", errs);
+}
+
+#[test]
+fn array_equality_rejected_with_e0227() {
+    let result = analyze(
+        "int main() { arr[int] a := [1, 2]; arr[int] b := [1, 2]; bool c := a == b; return 0; }",
+    );
+    let errs = result.unwrap_err();
+    assert!(has_unsupported_op(&errs, "=="), "got {:?}", errs);
+}
+
+#[test]
+fn bool_ordering_rejected_with_e0227() {
+    let result = analyze("int main() { bool c := true < false; return 0; }");
+    let errs = result.unwrap_err();
+    assert!(has_unsupported_op(&errs, "<"), "got {:?}", errs);
+}
+
+#[test]
+fn scalar_comparisons_still_pass() {
+    assert!(analyze("int main() { bool c := 1 == 2; return 0; }").is_ok());
+    assert!(analyze("int main() { bool c := 1.0 < 2.0; return 0; }").is_ok());
+    assert!(analyze("int main() { bool c := 'a' < 'b'; return 0; }").is_ok());
+    assert!(analyze("int main() { bool c := true == false; return 0; }").is_ok());
+}
