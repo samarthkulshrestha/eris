@@ -1632,6 +1632,7 @@ mod tests {
             "+", "-", "*", "/", "%", "==", "!=", "<", ">", "<=", ">=", "&", "|",
             "^", "<<", ">>", "&&", "||",
         ];
+        let mut exercised = 0;
         for (ty, l, r) in scalars {
             for op in ops {
                 let result_ty = match op {
@@ -1650,6 +1651,7 @@ mod tests {
                 if analyzer.analyze_program(&program).is_err() {
                     continue; // analyzer rejected it — codegen never sees it
                 }
+                exercised += 1;
                 let context = Context::create();
                 let mut codegen = CodeGen::new(&context, "seam");
                 let generated = codegen.generate(&program);
@@ -1660,5 +1662,10 @@ mod tests {
                 );
             }
         }
+        assert!(
+            exercised >= 30,
+            "matrix went near-vacuous: only {} analyzer-accepted combinations reached codegen",
+            exercised
+        );
     }
 }
