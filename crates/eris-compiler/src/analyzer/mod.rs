@@ -9,6 +9,29 @@ use crate::parser::ast::{
     BinOp, Expr, ExprKind, Program, Stmt, StmtKind, TypeKind,
 };
 
+fn bin_op_symbol(op: &BinOp) -> &'static str {
+    match op {
+        BinOp::Add => "+",
+        BinOp::Sub => "-",
+        BinOp::Mul => "*",
+        BinOp::Div => "/",
+        BinOp::Rem => "%",
+        BinOp::Eq => "==",
+        BinOp::Ne => "!=",
+        BinOp::Lt => "<",
+        BinOp::Gt => ">",
+        BinOp::Le => "<=",
+        BinOp::Ge => ">=",
+        BinOp::BAnd => "&",
+        BinOp::BOr => "|",
+        BinOp::BXor => "^",
+        BinOp::Shl => "<<",
+        BinOp::Shr => ">>",
+        BinOp::LAnd => "&&",
+        BinOp::LOr => "||",
+    }
+}
+
 pub struct Analyzer {
     scopes: Vec<Scope>,
     errors: Vec<AnalyzeError>,
@@ -441,6 +464,14 @@ impl Analyzer {
                                     AnalyzeErrorKind::TypeMismatch {
                                         expected: a.clone(),
                                         found: b.clone(),
+                                    },
+                                    expression.location.clone(),
+                                ));
+                            } else if !matches!(a, TypeKind::Int | TypeKind::Float) {
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::UnsupportedOperandType {
+                                        op: bin_op_symbol(op),
+                                        operand_type: a.clone(),
                                     },
                                     expression.location.clone(),
                                 ));
