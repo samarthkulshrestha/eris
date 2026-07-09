@@ -1,4 +1,3 @@
-import csv
 import sys
 from pathlib import Path
 
@@ -17,6 +16,9 @@ def test_write_rows_atomic_and_load_roundtrip(tmp_path):
     assert out.exists() and not out.with_suffix(".tmp").exists()
     loaded, done = load_existing(out)
     assert len(loaded) == 2
+    assert loaded[0]["solved"] is True and loaded[0]["turns"] == 2
+    assert loaded[1]["solved"] is False and loaded[1]["turns"] == 6
+    assert loaded[0]["sample"] == 0 and loaded[1]["sample"] == 0
     assert ("t1", "plain", "0") in done
     assert ("t1", "structured", "0") in done
 

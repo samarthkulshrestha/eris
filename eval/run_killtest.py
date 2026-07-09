@@ -34,6 +34,10 @@ def load_existing(out: Path) -> tuple[list[dict], set[tuple]]:
     with out.open(newline="") as f:
         rows = list(csv.DictReader(f))
     done = {(r["task"], r["condition"], r["sample"]) for r in rows}
+    for r in rows:  # CSV round-trips everything as strings; restore native types
+        r["solved"] = r["solved"] == "True"
+        r["turns"] = int(r["turns"])
+        r["sample"] = int(r["sample"])
     return rows, done
 
 
