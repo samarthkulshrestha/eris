@@ -1,0 +1,10 @@
+int main() {
+    int n := 1024;
+    mut int r := 0;
+    while (r + 1) * (r + 1) <= n {
+        r = r + 1;
+    }
+    print_int(r);
+    println();
+    return 0;
+}

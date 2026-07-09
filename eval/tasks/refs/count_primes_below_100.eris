@@ -1,0 +1,15 @@
+int main() {
+    mut int count := 0;
+    for n in 2..100 {
+        mut bool is_prime := true;
+        mut int d := 2;
+        while d * d <= n {
+            if n % d == 0 { is_prime = false; }
+            d = d + 1;
+        }
+        if is_prime { count = count + 1; }
+    }
+    print_int(count);
+    println();
+    return 0;
+}

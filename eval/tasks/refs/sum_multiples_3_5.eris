@@ -1,0 +1,11 @@
+int main() {
+    mut int total := 0;
+    for i in 1..100 {
+        if i % 3 == 0 || i % 5 == 0 {
+            total = total + i;
+        }
+    }
+    print_int(total);
+    println();
+    return 0;
+}

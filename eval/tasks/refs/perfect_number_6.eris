@@ -1,0 +1,17 @@
+bool is_perfect(int n) {
+    mut int total := 0;
+    mut int d := 1;
+    while d < n {
+        if n % d == 0 {
+            total = total + d;
+        }
+        d = d + 1;
+    }
+    return total == n;
+}
+
+int main() {
+    print_bool(is_perfect(6));
+    println();
+    return 0;
+}

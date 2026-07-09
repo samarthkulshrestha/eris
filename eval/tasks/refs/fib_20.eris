@@ -1,0 +1,12 @@
+int main() {
+    mut int a := 1;
+    mut int b := 1;
+    for i in 2..20 {
+        int t := a + b;
+        a = b;
+        b = t;
+    }
+    print_int(b);
+    println();
+    return 0;
+}

@@ -1,0 +1,7 @@
+int main() {
+    for i in 1..11 {
+        print_int(i * i);
+        println();
+    }
+    return 0;
+}

@@ -1,0 +1,9 @@
+int main() {
+    for row in 1..6 {
+        for col in 0..row {
+            print_char('*');
+        }
+        println();
+    }
+    return 0;
+}

@@ -1,0 +1,9 @@
+int main() {
+    mut int p := 1;
+    for i in 0..10 {
+        p = p * 2;
+    }
+    print_int(p);
+    println();
+    return 0;
+}
