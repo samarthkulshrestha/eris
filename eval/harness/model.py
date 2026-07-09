@@ -1,5 +1,6 @@
 """Model client (Anthropic) plus a mock for tests."""
 import re
+import time
 
 
 class MockModel:
@@ -18,13 +19,25 @@ class ClaudeModel:
         self.model_id = model_id
 
     def complete(self, system, messages):
-        resp = self.client.messages.create(
-            model=self.model_id,
-            max_tokens=2048,
-            system=system,
-            messages=messages,
-        )
-        return resp.content[0].text
+        import anthropic
+
+        for attempt in range(4):
+            try:
+                resp = self.client.messages.create(
+                    model=self.model_id,
+                    max_tokens=2048,
+                    system=system,
+                    messages=messages,
+                )
+                return resp.content[0].text
+            except (
+                anthropic.RateLimitError,
+                anthropic.APIConnectionError,
+                anthropic.InternalServerError,
+            ):
+                if attempt == 3:
+                    raise
+                time.sleep(10 * 2**attempt)
 
 
 def extract_code(reply: str) -> str:
