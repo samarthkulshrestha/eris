@@ -29,6 +29,7 @@ def test_builds_expected_argv(monkeypatch):
     assert "-p" in argv
     assert "claude-sonnet-5" in argv
     assert "--output-format" in argv and "json" in argv
+    assert "--tools=" in argv  # single token; variadic `--tools ""` would swallow the prompt
     assert "[User]\nhi" in argv
 
 
@@ -98,13 +99,56 @@ def test_raises_after_max_retries_on_usage_limit(monkeypatch):
 
 
 def test_raises_immediately_on_non_usage_error(monkeypatch):
-    monkeypatch.setattr(
-        "harness.model.subprocess.run",
-        lambda argv, **kwargs: FakeCompleted(stdout="", stderr="boom: bad flag", returncode=1),
-    )
+    calls = {"n": 0}
+
+    def fake_run(argv, **kwargs):
+        calls["n"] += 1
+        return FakeCompleted(stdout="", stderr="boom: bad flag", returncode=1)
+
+    monkeypatch.setattr("harness.model.subprocess.run", fake_run)
     model = ClaudeCodeModel("claude-sonnet-5")
     try:
         model.complete("sys", [{"role": "user", "content": "hi"}])
         assert False, "expected RuntimeError"
     except RuntimeError as e:
         assert "boom: bad flag" in str(e)
+    assert calls["n"] == 1
+
+
+def test_argv_error_printing_usage_is_not_a_usage_cap(monkeypatch):
+    # "Usage: claude [options]" contains the word "usage" — must NOT trigger the
+    # 15-minute retry loop; it's a permanent failure and should raise immediately.
+    slept = {"n": 0}
+
+    def no_sleep(seconds):
+        slept["n"] += 1
+
+    monkeypatch.setattr("harness.model.time.sleep", no_sleep)
+    calls = {"n": 0}
+
+    def fake_run(argv, **kwargs):
+        calls["n"] += 1
+        return FakeCompleted(stdout="", stderr="Usage: claude [options] [command] [prompt]", returncode=1)
+
+    monkeypatch.setattr("harness.model.subprocess.run", fake_run)
+    model = ClaudeCodeModel("claude-sonnet-5")
+    try:
+        model.complete("sys", [{"role": "user", "content": "hi"}])
+        assert False, "expected RuntimeError"
+    except RuntimeError:
+        pass
+    assert calls["n"] == 1
+    assert slept["n"] == 0
+
+
+def test_non_json_stdout_failure_includes_stdout_in_error(monkeypatch):
+    monkeypatch.setattr(
+        "harness.model.subprocess.run",
+        lambda argv, **kwargs: FakeCompleted(stdout="not json at all", stderr="", returncode=1),
+    )
+    model = ClaudeCodeModel("claude-sonnet-5")
+    try:
+        model.complete("sys", [{"role": "user", "content": "hi"}])
+        assert False, "expected RuntimeError"
+    except RuntimeError as e:
+        assert "not json at all" in str(e)

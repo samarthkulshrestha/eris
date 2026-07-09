@@ -5,7 +5,13 @@ import re
 import subprocess
 import time
 
-USAGE_LIMIT_RE = re.compile(r"limit|rate.?limit|usage", re.I)
+# Narrow phrases only: bare "limit"/"usage" would misclassify e.g. the CLI's
+# "Usage: claude [options]" argv-error output as a usage cap and retry for hours.
+USAGE_LIMIT_RE = re.compile(
+    r"usage limit|rate.?limit|limit reached|too many requests|overloaded"
+    r"|out of extended usage|hit your limit",
+    re.I,
+)
 MAX_USAGE_RETRIES = 24
 USAGE_RETRY_SLEEP_SECONDS = 900
 
@@ -103,7 +109,9 @@ class ClaudeCodeModel:
                 time.sleep(USAGE_RETRY_SLEEP_SECONDS)
                 continue
 
-            raise RuntimeError(f"claude-code backend failed: {proc.stderr}")
+            raise RuntimeError(
+                f"claude-code backend failed: stderr={proc.stderr!r} stdout={proc.stdout[:500]!r}"
+            )
 
 
 def extract_code(reply: str) -> str:
