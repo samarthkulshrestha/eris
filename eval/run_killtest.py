@@ -14,7 +14,7 @@ from harness.conditions import (
 )
 from harness.eris import build_compiler
 from harness.loop import attempt_task
-from harness.model import ClaudeModel
+from harness.model import ClaudeCodeModel, ClaudeModel
 
 FIELDNAMES = ["task", "condition", "sample", "solved", "turns"]
 
@@ -46,6 +46,7 @@ def main():
     ap.add_argument("--model", default="claude-sonnet-5")
     ap.add_argument("--samples", type=int, default=3)
     ap.add_argument("--out", default="eval/results/killtest.csv")
+    ap.add_argument("--backend", choices=["api", "claude-code"], default="api")
     args = ap.parse_args()
 
     build_compiler()
@@ -65,14 +66,14 @@ def main():
             for sample in range(args.samples):
                 if (task["id"], cond, str(sample)) in done:
                     continue
-                model = ClaudeModel(args.model)
+                model = ClaudeCodeModel(args.model) if args.backend == "claude-code" else ClaudeModel(args.model)
                 result = attempt_task(task, model, context, render)
                 row = {
                     "task": task["id"], "condition": cond, "sample": sample,
                     "solved": result["solved"], "turns": result["turns"],
                 }
                 rows.append(row)
-                print(row, flush=True)
+                print({**row, "backend": args.backend}, flush=True)
                 # write atomically so an aborted run keeps partial data
                 write_rows_atomic(out, rows)
 
