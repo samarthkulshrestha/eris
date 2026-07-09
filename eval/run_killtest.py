@@ -3,6 +3,7 @@
 import argparse
 import csv
 import json
+import os
 from pathlib import Path
 
 from harness.conditions import (
@@ -14,6 +15,26 @@ from harness.conditions import (
 from harness.eris import build_compiler
 from harness.loop import attempt_task
 from harness.model import ClaudeModel
+
+FIELDNAMES = ["task", "condition", "sample", "solved", "turns"]
+
+
+def write_rows_atomic(out: Path, rows: list[dict]) -> None:
+    tmp = out.with_suffix(".tmp")
+    with tmp.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=FIELDNAMES)
+        w.writeheader()
+        w.writerows(rows)
+    os.replace(tmp, out)
+
+
+def load_existing(out: Path) -> tuple[list[dict], set[tuple]]:
+    if not out.exists():
+        return [], set()
+    with out.open(newline="") as f:
+        rows = list(csv.DictReader(f))
+    done = {(r["task"], r["condition"], r["sample"]) for r in rows}
+    return rows, done
 
 
 def main():
@@ -32,10 +53,14 @@ def main():
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    rows = []
+    rows, done = load_existing(out)
+    if done:
+        print(f"resuming: {len(done)} attempts already recorded", flush=True)
     for task in tasks:
         for cond, (context, render) in conditions.items():
             for sample in range(args.samples):
+                if (task["id"], cond, str(sample)) in done:
+                    continue
                 model = ClaudeModel(args.model)
                 result = attempt_task(task, model, context, render)
                 row = {
@@ -44,11 +69,8 @@ def main():
                 }
                 rows.append(row)
                 print(row, flush=True)
-                # write incrementally so an aborted run keeps partial data
-                with out.open("w", newline="") as f:
-                    w = csv.DictWriter(f, fieldnames=rows[0].keys())
-                    w.writeheader()
-                    w.writerows(rows)
+                # write atomically so an aborted run keeps partial data
+                write_rows_atomic(out, rows)
 
     for cond in conditions:
         sub = [r for r in rows if r["condition"] == cond]
