@@ -4,5 +4,6 @@ int main() {
     for i in 0..10 {
         sum = sum + i;
     }
-    return sum;
+    print_int(sum);
+    return 0;
 }
