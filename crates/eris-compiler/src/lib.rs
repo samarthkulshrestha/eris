@@ -40,25 +40,35 @@ pub enum CompileError {
     Link(String),
 }
 
-impl fmt::Display for CompileError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl CompileError {
+    /// Render as human-readable text. `boring` strips the koan register,
+    /// falling back to the plain hint.
+    pub fn render_text(&self, boring: bool) -> String {
         match self {
-            CompileError::Io(e) => write!(f, "{}", e),
+            CompileError::Io(e) => e.to_string(),
             CompileError::Lex { source, filename, error } => {
-                write!(f, "{}", error.format_with_source(source, filename))
+                error.format_with_source_voiced(source, filename, boring)
             }
             CompileError::Parse { source, filename, error } => {
-                write!(f, "{}", error.format_with_source(source, filename))
+                error.format_with_source_voiced(source, filename, boring)
             }
             CompileError::Analyze { source, filename, errors } => {
+                let mut out = String::new();
                 for err in errors {
-                    writeln!(f, "{}", err.format_with_source(source, filename))?;
+                    out.push_str(&err.format_with_source_voiced(source, filename, boring));
+                    out.push('\n');
                 }
-                Ok(())
+                out
             }
-            CompileError::Codegen(msg) => write!(f, "code generation error: {}", msg),
-            CompileError::Link(msg) => write!(f, "linker error: {}", msg),
+            CompileError::Codegen(msg) => format!("code generation error: {}", msg),
+            CompileError::Link(msg) => format!("linker error: {}", msg),
         }
+    }
+}
+
+impl fmt::Display for CompileError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.render_text(false))
     }
 }
 
@@ -87,6 +97,8 @@ pub struct CompileOptions {
     pub output_dir: Option<std::path::PathBuf>,
     /// Output format for diagnostics (text or json).
     pub format: OutputFormat,
+    /// Strip the whimsical register from terminal diagnostics.
+    pub boring: bool,
 }
 
 impl From<&CompileError> for Vec<crate::diagnostics::Diagnostic> {
@@ -244,6 +256,7 @@ mod tests {
             emit_ir: false,
             output_dir: Some(tmp.path().to_path_buf()),
             format: OutputFormat::Text,
+            boring: false,
         };
 
         process_file(src.to_str().unwrap(), options).expect("compilation failed");
@@ -276,6 +289,7 @@ mod tests {
             emit_ir: false,
             output_dir: Some(tmp.path().to_path_buf()),
             format: OutputFormat::Text,
+            boring: false,
         };
         process_file(src.to_str().unwrap(), options).expect("compilation failed");
         assert!(tmp.path().join("01").exists(), "binary not found");

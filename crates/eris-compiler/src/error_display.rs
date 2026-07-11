@@ -86,10 +86,21 @@ pub trait FormattedError {
     fn hint(&self) -> Option<String> {
         None
     }
+    /// The whimsical register of the hint. Shown by default in terminal
+    /// output; `--boring` (or a missing koan) falls back to `hint()`.
+    /// Never used in JSON diagnostics or --explain.
+    fn koan(&self) -> Option<String> {
+        None
+    }
 
-    fn format_with_source(&self, source: &str, filename: &str) -> String {
+    fn format_with_source_voiced(&self, source: &str, filename: &str, boring: bool) -> String {
+        let hint = if boring {
+            self.hint()
+        } else {
+            self.koan().or_else(|| self.hint())
+        };
         let formatter = ErrorFormatter::new(source, filename);
-        formatter.format_error(&self.error_type(), &self.message(), self.location(), self.hint().as_deref())
+        formatter.format_error(&self.error_type(), &self.message(), self.location(), hint.as_deref())
     }
 }
 
@@ -133,5 +144,36 @@ mod tests {
 
         assert!(formatted.contains("int y := z;"));
         assert!(!formatted.contains("int x := 10;"));
+    }
+
+    struct TwoVoices;
+    impl FormattedError for TwoVoices {
+        fn error_type(&self) -> &str {
+            "test error"
+        }
+        fn message(&self) -> String {
+            "the message".to_string()
+        }
+        fn location(&self) -> &SourceLocation {
+            static LOC: SourceLocation = SourceLocation { line: 1, column: 1 };
+            &LOC
+        }
+        fn hint(&self) -> Option<String> {
+            Some("the plain hint".to_string())
+        }
+        fn koan(&self) -> Option<String> {
+            Some("the koan".to_string())
+        }
+    }
+
+    #[test]
+    fn voiced_rendering_prefers_koan_unless_boring() {
+        let whimsical = TwoVoices.format_with_source_voiced("x", "t.eris", false);
+        assert!(whimsical.contains("the koan"));
+        assert!(!whimsical.contains("the plain hint"));
+
+        let boring = TwoVoices.format_with_source_voiced("x", "t.eris", true);
+        assert!(boring.contains("the plain hint"));
+        assert!(!boring.contains("the koan"));
     }
 }

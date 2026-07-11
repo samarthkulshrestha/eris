@@ -15,7 +15,7 @@ const COOKBOOK_JSON: &str = include_str!("../../../schemas/cookbook.json");
 
 fn print_usage(prog: &str) {
     eprintln!(
-        "Usage: {} [--emit-ir] [-o <output_dir>] [--format text|json] <source_file>",
+        "Usage: {} [--emit-ir] [--boring] [-o <output_dir>] [--format text|json] <source_file>",
         prog
     );
     eprintln!(
@@ -92,6 +92,18 @@ fn run_explain(code: &str, format: eris_compiler::OutputFormat) -> ! {
     use eris_compiler::cookbook::CookbookEntry;
     use eris_compiler::explain::{explain_error_lookup, ExplainError};
 
+    if code.eq_ignore_ascii_case("fnord") {
+        println!("FNORD — the statement you were conditioned not to see.");
+        println!();
+        println!("Marks a code path that can never be reached. The analyzer treats it");
+        println!("as terminal; if a running program ever reaches one, it prints");
+        println!("\"you saw the fnord.\" and exits with code 5, in accordance with the");
+        println!("Law of Fives.");
+        println!();
+        println!("There is no error here. There never was.");
+        process::exit(5);
+    }
+
     let cookbook: Vec<CookbookEntry> = match serde_json::from_str(COOKBOOK_JSON) {
         Ok(v) => v,
         Err(e) => {
@@ -152,6 +164,11 @@ fn main() {
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "--emit-ir" => options.emit_ir = true,
+            "--boring" => options.boring = true,
+            "-V" | "--version" => {
+                println!("eris {} — kallisti", env!("CARGO_PKG_VERSION"));
+                return;
+            }
             "-h" | "--help" => {
                 print_usage(prog);
                 return;
@@ -285,7 +302,7 @@ fn main() {
                 );
                 process::exit(1);
             } else {
-                eprint!("{}", e);
+                eprint!("{}", e.render_text(options.boring));
                 process::exit(1);
             }
         }

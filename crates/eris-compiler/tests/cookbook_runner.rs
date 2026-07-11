@@ -52,6 +52,7 @@ fn run_positive(entry: &CookbookEntry, expected_output: &str) -> Result<(), Stri
         emit_ir: false,
         output_dir: Some(tmp.path().to_path_buf()),
         format: OutputFormat::Json,
+        boring: false,
     };
     process_file(src_path.to_str().unwrap(), opts)
         .map_err(|e| format!("compile failed: {:?}", e))?;
