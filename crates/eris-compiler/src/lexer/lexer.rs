@@ -301,6 +301,10 @@ impl crate::error_display::FormattedError for LexerError {
             _ => None,
         }
     }
+
+    fn koan(&self) -> Option<String> {
+        Some("the goddess does not recognize this sigil. remove it, or finish what it starts".to_string())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, JsonSchema)]

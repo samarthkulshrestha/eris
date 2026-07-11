@@ -78,6 +78,10 @@ impl crate::error_display::FormattedError for ParseError {
             _ => None,
         }
     }
+
+    fn koan(&self) -> Option<String> {
+        Some("the grammar is a ritual, and this token arrived out of turn. read the line as the parser must: left to right, expecting order".to_string())
+    }
 }
 
 impl From<ParseError> for crate::diagnostics::Diagnostic {

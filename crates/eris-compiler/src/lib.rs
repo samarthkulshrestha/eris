@@ -8,7 +8,7 @@ pub(crate) mod codegen;
 pub mod cookbook;
 pub mod explain;
 pub mod diagnostics;
-pub(crate) mod error_display;
+pub mod error_display;
 pub mod lexer;
 pub mod parser;
 

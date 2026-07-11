@@ -412,4 +412,79 @@ impl crate::error_display::FormattedError for AnalyzeError {
             _ => None,
         }
     }
+
+    fn koan(&self) -> Option<String> {
+        match &self.kind {
+            AnalyzeErrorKind::UndeclaredVariable(name) => Some(format!(
+                "you may not summon what was never named. declare '{}' before invoking it",
+                name
+            )),
+            AnalyzeErrorKind::UndeclaredFunction(name) => Some(format!(
+                "no rite by the name '{}' has been inscribed. declare the function before calling it",
+                name
+            )),
+            AnalyzeErrorKind::TypeMismatch { .. } => Some(
+                "all things must match exactly; Eris performs no silent transformations. convert with intent".to_string(),
+            ),
+            AnalyzeErrorKind::IncorrectArgumentCount { expected, .. } => Some(format!(
+                "the rite demands exactly {} offering(s). count your arguments",
+                expected
+            )),
+            AnalyzeErrorKind::VariableAlreadyDeclared(name) => Some(format!(
+                "one name, one binding, one scope. choose a new name, or reassign '{}' with '='",
+                name
+            )),
+            AnalyzeErrorKind::AssignmentToImmutable(name) => Some(format!(
+                "what is fixed cannot be swayed. declare '{}' with 'mut' if it must change",
+                name
+            )),
+            AnalyzeErrorKind::BreakOutsideLoop => Some(
+                "there is nothing here to escape. 'break' belongs inside a loop".to_string(),
+            ),
+            AnalyzeErrorKind::ContinueOutsideLoop => Some(
+                "you cannot continue what never repeats. 'continue' belongs inside a loop".to_string(),
+            ),
+            AnalyzeErrorKind::MissingReturn(name) => Some(format!(
+                "every path must arrive somewhere, and one path through '{}' wanders off without returning",
+                name
+            )),
+            AnalyzeErrorKind::ReturnMissingValue { .. } => Some(
+                "you promised a value and returned with empty hands".to_string(),
+            ),
+            AnalyzeErrorKind::NonIterableInForLoop { .. } => Some(
+                "'for' walks a range. give it 'start..end', or give it nothing".to_string(),
+            ),
+            AnalyzeErrorKind::IndexOutOfRange { array_size, .. } => Some(format!(
+                "the array ends before your index does. valid indices stop at {}",
+                array_size.saturating_sub(1)
+            )),
+            AnalyzeErrorKind::IndexNotInteger { .. } => Some(
+                "arrays are counted in whole steps. index with an 'int'".to_string(),
+            ),
+            AnalyzeErrorKind::TakeRefOfNonLvalue => Some(
+                "you cannot point at what has no home. name it first, then take the reference".to_string(),
+            ),
+            AnalyzeErrorKind::TakeMutRefOfImmutable { name } => Some(format!(
+                "to lend the power of change over '{}', one must first possess it. declare it 'mut'",
+                name
+            )),
+            AnalyzeErrorKind::DerefOfNonReference { .. } => Some(
+                "'*' opens a door, and this is a wall. take a reference first".to_string(),
+            ),
+            AnalyzeErrorKind::ReturnsLocalReference => Some(
+                "the local dies at the closing brace; your reference would point at a ghost. return the value itself".to_string(),
+            ),
+            AnalyzeErrorKind::UnsupportedOperandType { op, .. } => Some(format!(
+                "the operator '{}' refuses these offerings. arithmetic wants 'int' or 'float'",
+                op
+            )),
+            AnalyzeErrorKind::DiscordDependency { name } => Some(format!(
+                "these statements share '{}', so their order matters — and ordered chaos is no chaos at all. separate them",
+                name
+            )),
+            AnalyzeErrorKind::DiscordImpurity { .. } => Some(
+                "chaos that can be witnessed is no longer harmless. only pure, independent bindings may enter the discord".to_string(),
+            ),
+        }
+    }
 }

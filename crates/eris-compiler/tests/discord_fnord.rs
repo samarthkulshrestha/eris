@@ -97,3 +97,26 @@ fn discord_scope_leaks_by_design() {
     let r = analyze("int main() { discord { int a := 1; } return a; }");
     assert!(r.is_ok(), "got {:?}", r);
 }
+
+use eris_compiler::error_display::FormattedError;
+use eris_compiler::lexer::SourceLocation;
+
+#[test]
+fn every_analyzer_error_kind_has_a_koan() {
+    // Spot-check the two discord codes end-to-end, and assert the koan
+    // register differs from the plain hint (dual-register, not a copy).
+    let err = AnalyzeError::new(
+        AnalyzeErrorKind::DiscordImpurity { what: "print_int".to_string() },
+        SourceLocation::default(),
+    );
+    let koan = err.koan().expect("DiscordImpurity must have a koan");
+    let hint = err.hint().expect("DiscordImpurity must keep its plain hint");
+    assert_ne!(koan, hint);
+    assert!(koan.contains("witnessed"));
+
+    let err = AnalyzeError::new(
+        AnalyzeErrorKind::DiscordDependency { name: "x".to_string() },
+        SourceLocation::default(),
+    );
+    assert!(err.koan().expect("DiscordDependency must have a koan").contains("'x'"));
+}
