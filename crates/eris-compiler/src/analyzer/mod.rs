@@ -8,6 +8,7 @@ use symbol::{Scope, Symbol};
 use crate::parser::ast::{
     BinOp, Expr, ExprKind, Program, Stmt, StmtKind, TypeKind,
 };
+use std::collections::HashSet;
 
 fn bin_op_symbol(op: &BinOp) -> &'static str {
     match op {
@@ -29,6 +30,84 @@ fn bin_op_symbol(op: &BinOp) -> &'static str {
         BinOp::Shr => ">>",
         BinOp::LAnd => "&&",
         BinOp::LOr => "||",
+    }
+}
+
+/// Collect every identifier read by an expression, pushing E0229 for any
+/// impure sub-expression. Exhaustive over ExprKind: nothing is silently
+/// allowed by a catch-all.
+fn discord_reads(
+    expr: &Expr,
+    reads: &mut HashSet<String>,
+    errors: &mut Vec<AnalyzeError>,
+) {
+    match &expr.kind {
+        // Literals read nothing.
+        ExprKind::IntLit(_)
+        | ExprKind::FloatLit(_)
+        | ExprKind::CharLit(_)
+        | ExprKind::StringLit(_)
+        | ExprKind::BoolTrue
+        | ExprKind::BoolFalse => {}
+        ExprKind::ArrayLit(elements) => {
+            for e in elements {
+                discord_reads(e, reads, errors);
+            }
+        }
+        ExprKind::IdentExpr(ident) => {
+            reads.insert(ident.name.clone());
+        }
+        ExprKind::UnaryExpr { expression, .. } => {
+            discord_reads(expression, reads, errors);
+        }
+        ExprKind::BinaryExpr { left, right, .. } => {
+            discord_reads(left, reads, errors);
+            discord_reads(right, reads, errors);
+        }
+        ExprKind::ParenExpr(inner) => {
+            discord_reads(inner, reads, errors);
+        }
+        ExprKind::ArrayIndex { array, index } => {
+            discord_reads(array, reads, errors);
+            discord_reads(index, reads, errors);
+        }
+        ExprKind::TupleExpr(items) => {
+            for item in items {
+                discord_reads(item, reads, errors);
+            }
+        }
+        ExprKind::FunctionCall { function, arguments } => {
+            if function.name == "len" {
+                for arg in arguments {
+                    discord_reads(arg, reads, errors);
+                }
+            } else {
+                errors.push(AnalyzeError::new(
+                    AnalyzeErrorKind::DiscordImpurity { what: function.name.clone() },
+                    expr.location.clone(),
+                ));
+            }
+        }
+        ExprKind::TakeRef { .. } => errors.push(AnalyzeError::new(
+            AnalyzeErrorKind::DiscordImpurity { what: "&".to_string() },
+            expr.location.clone(),
+        )),
+        ExprKind::Deref(_) => errors.push(AnalyzeError::new(
+            AnalyzeErrorKind::DiscordImpurity { what: "*".to_string() },
+            expr.location.clone(),
+        )),
+        ExprKind::Range { .. } => errors.push(AnalyzeError::new(
+            AnalyzeErrorKind::DiscordImpurity { what: "range".to_string() },
+            expr.location.clone(),
+        )),
+        ExprKind::BlockExpr { .. } => errors.push(AnalyzeError::new(
+            AnalyzeErrorKind::DiscordImpurity { what: "block expression".to_string() },
+            expr.location.clone(),
+        )),
+        ExprKind::IfExpr { .. } => errors.push(AnalyzeError::new(
+            AnalyzeErrorKind::DiscordImpurity { what: "if".to_string() },
+            expr.location.clone(),
+        )),
     }
 }
 
@@ -396,14 +475,87 @@ impl Analyzer {
                 self.exit_scope();
             }
             StmtKind::DiscordBlock { body } => {
-                // No new scope: discord shares the enclosing scope so its
-                // declarations are usable after the block.
                 if let ExprKind::BlockExpr { statements, ret } = &body.kind {
-                    for s in statements {
-                        self.analyze_statement(s, expected_return_type.clone());
-                    }
                     if let Some(r) = ret {
-                        self.analyze_expression(r, None);
+                        self.errors.push(AnalyzeError::new(
+                            AnalyzeErrorKind::DiscordImpurity {
+                                what: "trailing expression".to_string(),
+                            },
+                            r.location.clone(),
+                        ));
+                    }
+                    let mut sets: Vec<(HashSet<String>, HashSet<String>)> = Vec::new();
+                    for s in statements {
+                        let mut reads: HashSet<String> = HashSet::new();
+                        let mut writes: HashSet<String> = HashSet::new();
+                        match &s.kind {
+                            StmtKind::VarDecl { ident, initializer, .. } => {
+                                writes.insert(ident.name.clone());
+                                discord_reads(initializer, &mut reads, &mut self.errors);
+                            }
+                            StmtKind::Assignment { target, value } => {
+                                match &target.kind {
+                                    ExprKind::IdentExpr(ident) => {
+                                        writes.insert(ident.name.clone());
+                                    }
+                                    ExprKind::ArrayIndex { array, index } => {
+                                        if let ExprKind::IdentExpr(ident) = &array.kind {
+                                            writes.insert(ident.name.clone());
+                                        }
+                                        discord_reads(index, &mut reads, &mut self.errors);
+                                    }
+                                    _ => {
+                                        self.errors.push(AnalyzeError::new(
+                                            AnalyzeErrorKind::DiscordImpurity {
+                                                what: "*".to_string(),
+                                            },
+                                            target.location.clone(),
+                                        ));
+                                    }
+                                }
+                                discord_reads(value, &mut reads, &mut self.errors);
+                            }
+                            StmtKind::ExprStmt(e) => {
+                                discord_reads(e, &mut reads, &mut self.errors);
+                            }
+                            other => {
+                                let what = match other {
+                                    StmtKind::WhileLoop { .. } => "while",
+                                    StmtKind::ForIn { .. } => "for",
+                                    StmtKind::Break => "break",
+                                    StmtKind::Continue => "continue",
+                                    StmtKind::ReturnStmt(_) => "return",
+                                    StmtKind::FuncDecl { .. } => "function declaration",
+                                    StmtKind::DiscordBlock { .. } => "nested discord",
+                                    StmtKind::Fnord => "fnord",
+                                    _ => "statement",
+                                };
+                                self.errors.push(AnalyzeError::new(
+                                    AnalyzeErrorKind::DiscordImpurity {
+                                        what: what.to_string(),
+                                    },
+                                    s.location.clone(),
+                                ));
+                            }
+                        }
+                        // Pairwise independence against every earlier statement.
+                        let conflict = sets.iter().find_map(|(prev_reads, prev_writes)| {
+                            writes
+                                .iter()
+                                .find(|w| prev_reads.contains(*w) || prev_writes.contains(*w))
+                                .or_else(|| prev_writes.iter().find(|w| reads.contains(*w)))
+                                .cloned()
+                        });
+                        if let Some(name) = conflict {
+                            self.errors.push(AnalyzeError::new(
+                                AnalyzeErrorKind::DiscordDependency { name },
+                                s.location.clone(),
+                            ));
+                        }
+                        sets.push((reads, writes));
+                        // Normal scope/type analysis still applies, in the
+                        // enclosing scope (discord introduces none).
+                        self.analyze_statement(s, expected_return_type.clone());
                     }
                 }
             }
