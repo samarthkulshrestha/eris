@@ -446,7 +446,7 @@ To print each value on its own line, call `println()` after the `print_*` functi
 
 ## 6. Error Codes
 
-Diagnostics carry a structured code in the range E0001–E0227. The phase column is derived from the numeric range: codes E0001–E0099 are lexer errors, E0100–E0199 are parser errors, and E0200–E0299 are analyzer errors.
+Diagnostics carry a structured code in the range E0001–E0229. The phase column is derived from the numeric range: codes E0001–E0099 are lexer errors, E0100–E0199 are parser errors, and E0200–E0299 are analyzer errors.
 
 | Code   | Name                   | Phase    | Fields                           |
 |--------|------------------------|----------|----------------------------------|
@@ -472,6 +472,8 @@ Diagnostics carry a structured code in the range E0001–E0227. The phase column
 | E0225  | DerefOfNonReference    | analyzer | `found`                          |
 | E0226  | ReturnsLocalReference  | analyzer | _(none)_                         |
 | E0227  | UnsupportedOperandType | analyzer | `op`, `operand_type`             |
+| E0228  | DiscordDependency      | analyzer | `name`                           |
+| E0229  | DiscordImpurity        | analyzer | `what`                           |
 
 Diagnostics are emitted to stderr in human-readable text by default. Pass `--format=json` to receive a JSON array conforming to `schemas/diagnostic-envelope.json`. The JSON form includes `code`, `severity`, `message`, `location`, and a `fields` object whose keys match the "Fields" column above.
 

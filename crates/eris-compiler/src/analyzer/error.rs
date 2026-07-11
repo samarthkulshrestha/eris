@@ -47,6 +47,12 @@ pub enum AnalyzeErrorKind {
         op: &'static str,
         operand_type: TypeKind,
     },
+    DiscordDependency {
+        name: String,
+    },
+    DiscordImpurity {
+        what: String,
+    },
 }
 
 impl AnalyzeError {
@@ -223,6 +229,24 @@ impl From<AnalyzeError> for crate::diagnostics::Diagnostic {
                     fields,
                 )
             }
+            AnalyzeErrorKind::DiscordDependency { name } => {
+                let mut fields = Map::new();
+                fields.insert("name".to_string(), Value::String(name.clone()));
+                (
+                    ErrorCode::E0228,
+                    format!("discord block statements are not independent: more than one statement touches '{}'", name),
+                    fields,
+                )
+            }
+            AnalyzeErrorKind::DiscordImpurity { what } => {
+                let mut fields = Map::new();
+                fields.insert("what".to_string(), Value::String(what.clone()));
+                (
+                    ErrorCode::E0229,
+                    format!("'{}' is not permitted inside a discord block", what),
+                    fields,
+                )
+            }
         };
 
         Diagnostic {
@@ -258,6 +282,8 @@ impl crate::error_display::FormattedError for AnalyzeError {
             AnalyzeErrorKind::DerefOfNonReference { .. } => "dereference of non-reference",
             AnalyzeErrorKind::ReturnsLocalReference => "returns reference to local",
             AnalyzeErrorKind::UnsupportedOperandType { .. } => "unsupported operand type",
+            AnalyzeErrorKind::DiscordDependency { .. } => "discord dependency",
+            AnalyzeErrorKind::DiscordImpurity { .. } => "discord impurity",
         }
     }
 
@@ -316,6 +342,12 @@ impl crate::error_display::FormattedError for AnalyzeError {
                     op, operand_type
                 )
             }
+            AnalyzeErrorKind::DiscordDependency { name } => {
+                format!("Statements in this discord block are not independent: more than one touches '{}'", name)
+            }
+            AnalyzeErrorKind::DiscordImpurity { what } => {
+                format!("'{}' is not permitted inside a discord block", what)
+            }
         }
     }
 
@@ -369,6 +401,13 @@ impl crate::error_display::FormattedError for AnalyzeError {
             }
             AnalyzeErrorKind::UnsupportedOperandType { .. } => Some(
                 "arithmetic operators require 'int' or 'float' operands; comparison operators additionally accept 'char' and 'bool'".to_string(),
+            ),
+            AnalyzeErrorKind::DiscordDependency { name } => Some(format!(
+                "move the statements that share '{}' out of the discord block, or merge them into one statement",
+                name
+            )),
+            AnalyzeErrorKind::DiscordImpurity { .. } => Some(
+                "keep effects outside: only declarations, assignments, and pure expressions may be discordant".to_string(),
             ),
             _ => None,
         }

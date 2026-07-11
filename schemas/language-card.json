@@ -368,6 +368,22 @@
         "operand_type"
       ],
       "hint": "arithmetic operators require 'int' or 'float' operands; comparison operators additionally accept 'char' and 'bool'"
+    },
+    {
+      "code": "E0228",
+      "name": "DiscordDependency",
+      "fields": [
+        "name"
+      ],
+      "hint": "each statement in a discord block must neither read nor write anything another statement in the block writes"
+    },
+    {
+      "code": "E0229",
+      "name": "DiscordImpurity",
+      "fields": [
+        "what"
+      ],
+      "hint": "only variable declarations, assignments, and pure expressions (no calls except 'len', no references, no control flow, no side effects) are allowed inside a discord block"
     }
   ]
 }

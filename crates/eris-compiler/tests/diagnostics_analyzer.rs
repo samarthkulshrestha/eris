@@ -261,3 +261,25 @@ fn unsupported_operand_type_maps_to_e0227() {
     assert_eq!(diag.fields.get("op").unwrap(), "+");
     assert_eq!(diag.fields.get("operand_type").unwrap(), "str");
 }
+
+#[test]
+fn discord_dependency_maps_to_e0228() {
+    let err = AnalyzeError::new(
+        AnalyzeErrorKind::DiscordDependency { name: "x".to_string() },
+        SourceLocation::default(),
+    );
+    let diag: Diagnostic = err.into();
+    assert_eq!(diag.code, ErrorCode::E0228);
+    assert_eq!(diag.fields.get("name").unwrap(), "x");
+}
+
+#[test]
+fn discord_impurity_maps_to_e0229() {
+    let err = AnalyzeError::new(
+        AnalyzeErrorKind::DiscordImpurity { what: "print_int".to_string() },
+        SourceLocation::default(),
+    );
+    let diag: Diagnostic = err.into();
+    assert_eq!(diag.code, ErrorCode::E0229);
+    assert_eq!(diag.fields.get("what").unwrap(), "print_int");
+}

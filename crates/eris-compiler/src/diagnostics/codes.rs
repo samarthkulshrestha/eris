@@ -34,6 +34,8 @@ pub enum ErrorCode {
     E0225,
     E0226,
     E0227,
+    E0228,
+    E0229,
 }
 
 /// Single source of truth for error code string values.
@@ -61,6 +63,8 @@ pub const ALL_CODES: &[(ErrorCode, &str)] = &[
     (ErrorCode::E0225, "E0225"),
     (ErrorCode::E0226, "E0226"),
     (ErrorCode::E0227, "E0227"),
+    (ErrorCode::E0228, "E0228"),
+    (ErrorCode::E0229, "E0229"),
 ];
 
 impl ErrorCode {
@@ -97,6 +101,8 @@ impl ErrorCode {
             ErrorCode::E0225 => "DerefOfNonReference",
             ErrorCode::E0226 => "ReturnsLocalReference",
             ErrorCode::E0227 => "UnsupportedOperandType",
+            ErrorCode::E0228 => "DiscordDependency",
+            ErrorCode::E0229 => "DiscordImpurity",
         }
     }
 
@@ -124,6 +130,8 @@ impl ErrorCode {
             ErrorCode::E0225 => &["found"],
             ErrorCode::E0226 => &[],
             ErrorCode::E0227 => &["op", "operand_type"],
+            ErrorCode::E0228 => &["name"],
+            ErrorCode::E0229 => &["what"],
         }
     }
 
@@ -151,6 +159,8 @@ impl ErrorCode {
             ErrorCode::E0225 => Some("take a reference with '&' or '&mut' before dereferencing"),
             ErrorCode::E0226 => Some("return the value itself, or pass the destination as a '&mut' parameter"),
             ErrorCode::E0227 => Some("arithmetic operators require 'int' or 'float' operands; comparison operators additionally accept 'char' and 'bool'"),
+            ErrorCode::E0228 => Some("each statement in a discord block must neither read nor write anything another statement in the block writes"),
+            ErrorCode::E0229 => Some("only variable declarations, assignments, and pure expressions (no calls except 'len', no references, no control flow, no side effects) are allowed inside a discord block"),
         }
     }
 }
