@@ -587,6 +587,46 @@ impl<'ctx> CodeGen<'ctx> {
 
                 self.builder.position_at_end(after_block);
             }
+            StmtKind::DiscordBlock { body } => {
+                // ponytail: the analyzer guarantees any execution order is
+                // equivalent, so source order is a valid order. Reordering /
+                // parallelism is future license, not an obligation.
+                if let ExprKind::BlockExpr { statements, .. } = &body.kind {
+                    for s in statements {
+                        self.generate_statement(s)?;
+                    }
+                }
+            }
+            StmtKind::Fnord => {
+                let printf = self
+                    .module
+                    .get_function("printf")
+                    .ok_or("printf not declared")?;
+                let msg = self
+                    .builder
+                    .build_global_string_ptr("you saw the fnord.\n", "fnord_msg")
+                    .map_err(|e| format!("Failed to build fnord message: {}", e))?;
+                self.builder
+                    .build_call(printf, &[msg.as_pointer_value().into()], "fnord_print")
+                    .map_err(|e| format!("Failed to print fnord: {}", e))?;
+                let exit_fn = self.module.get_function("exit").unwrap_or_else(|| {
+                    let fn_type = self
+                        .context
+                        .void_type()
+                        .fn_type(&[self.context.i32_type().into()], false);
+                    self.module.add_function("exit", fn_type, None)
+                });
+                self.builder
+                    .build_call(
+                        exit_fn,
+                        &[self.context.i32_type().const_int(5, false).into()],
+                        "",
+                    )
+                    .map_err(|e| format!("Failed to call exit: {}", e))?;
+                self.builder
+                    .build_unreachable()
+                    .map_err(|e| format!("Failed to build unreachable: {}", e))?;
+            }
         }
         Ok(())
     }
@@ -1667,5 +1707,22 @@ mod tests {
             "matrix went near-vacuous: only {} analyzer-accepted combinations reached codegen",
             exercised
         );
+    }
+
+    #[test]
+    fn ir_emits_discord_block_statements_in_source_order() {
+        let ir = compile_to_ir(
+            "int main() { discord { int a := 2; int b := 3; } return a + b; }",
+        );
+        assert!(ir.contains("store i64 2"));
+        assert!(ir.contains("store i64 3"));
+    }
+
+    #[test]
+    fn ir_emits_fnord_abort() {
+        let ir = compile_to_ir("int nope() { fnord; } int main() { return 0; }");
+        assert!(ir.contains("you saw the fnord."));
+        assert!(ir.contains("call void @exit"));
+        assert!(ir.contains("unreachable"));
     }
 }

@@ -44,6 +44,13 @@ pub enum StmtKind {
         iterable: Box<Expr>,
         body: Box<Expr>,
     },
+    /// discord { ... } — statements with no defined execution order.
+    /// Shares the enclosing scope; declarations inside are visible after.
+    DiscordBlock {
+        body: Box<Expr>, // always ExprKind::BlockExpr
+    },
+    /// fnord; — an unreachable code path. Reaching it at runtime aborts.
+    Fnord,
 }
 
 #[derive(Debug, Clone, PartialEq)]

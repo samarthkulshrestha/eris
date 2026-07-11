@@ -500,6 +500,18 @@ impl Parser {
                 }
             }
 
+            Some((Token::Discord, _)) => {
+                self.advance(); // consume 'discord'
+                let body = self.parse_block_expression()?;
+                StmtKind::DiscordBlock { body: Box::new(body) }
+            }
+
+            Some((Token::Fnord, _)) => {
+                self.advance(); // consume 'fnord'
+                self.expect(&[Token::Semicolon])?;
+                StmtKind::Fnord
+            }
+
             Some((_, _loc)) => {
                 // Try to parse it as an expression statement or deref assignment (*r = v).
                 let expr = self.parse_expression()?;

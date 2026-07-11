@@ -18,7 +18,7 @@ Eris is a statically typed, expression-oriented systems language with three core
 
 ### 2.1 Keywords
 
-Eris reserves the following 17 identifiers as keywords. They may not be used as variable or function names.
+Eris reserves the following 19 identifiers as keywords. They may not be used as variable or function names.
 
 | Keyword    | Role                                 |
 |------------|--------------------------------------|
@@ -27,9 +27,11 @@ Eris reserves the following 17 identifiers as keywords. They may not be used as 
 | `break`    | exit the enclosing loop              |
 | `char`     | character type                       |
 | `continue` | advance to the next loop iteration   |
+| `discord`  | unordered (independent) statement block |
 | `else`     | alternate branch of `if`             |
 | `false`    | boolean literal false                |
 | `float`    | floating-point type                  |
+| `fnord`    | unreachable code path                |
 | `for`      | range-based for loop                 |
 | `if`       | conditional expression               |
 | `in`       | separates loop variable from range   |
@@ -399,6 +401,26 @@ mut int val := 10;
 *r = 20;
 int copy := *r;
 ```
+
+### 4.13 discord blocks
+
+`discord { ... }` declares that the statements inside have **no defined
+execution order** — the compiler may execute them in any order, including
+(in future) in parallel. To keep that freedom harmless, the analyzer verifies
+the statements are independent: no statement may read or write a variable
+another statement in the block writes (E0228), and only pure statements —
+variable declarations, assignments, and expressions without calls (except
+`len`), references, or control flow — are permitted (E0229). A discord block
+does not introduce a scope: declarations inside are visible after the block.
+Because independence is verified, every execution order produces identical
+results; the chaos is real but unobservable.
+
+### 4.14 fnord
+
+`fnord;` marks a code path that can never be reached. The analyzer treats it
+as terminal (a branch ending in `fnord;` satisfies return-coverage checks,
+E0209). If a running program ever reaches one, it prints `you saw the fnord.`
+and exits with code 5.
 
 ---
 

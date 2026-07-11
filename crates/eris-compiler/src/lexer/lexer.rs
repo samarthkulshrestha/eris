@@ -46,6 +46,10 @@ pub enum Token {
     For,
     #[token("in")]
     In,
+    #[token("discord")]
+    Discord,
+    #[token("fnord")]
+    Fnord,
 
     // Operators
     #[token(":=")]

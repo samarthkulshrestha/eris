@@ -55,8 +55,9 @@ use crate::diagnostics::codes::ALL_CODES;
 
 pub fn build_language_card() -> LanguageCard {
     let mut keywords = vec![
-        "arr", "bool", "break", "char", "continue", "else", "false", "float",
-        "for", "if", "in", "int", "mut", "return", "str", "true", "while",
+        "arr", "bool", "break", "char", "continue", "discord", "else", "false",
+        "float", "fnord", "for", "if", "in", "int", "mut", "return", "str",
+        "true", "while",
     ]
     .into_iter()
     .map(String::from)

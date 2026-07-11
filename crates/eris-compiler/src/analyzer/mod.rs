@@ -395,6 +395,19 @@ impl Analyzer {
                 self.loop_depth -= 1;
                 self.exit_scope();
             }
+            StmtKind::DiscordBlock { body } => {
+                // No new scope: discord shares the enclosing scope so its
+                // declarations are usable after the block.
+                if let ExprKind::BlockExpr { statements, ret } = &body.kind {
+                    for s in statements {
+                        self.analyze_statement(s, expected_return_type.clone());
+                    }
+                    if let Some(r) = ret {
+                        self.analyze_expression(r, None);
+                    }
+                }
+            }
+            StmtKind::Fnord => {}
         }
     }
 
@@ -937,6 +950,7 @@ fn stmt_always_returns(stmt: &Stmt) -> bool {
     match &stmt.kind {
         StmtKind::ReturnStmt(_) => true,
         StmtKind::ExprStmt(expr) => expr_always_returns(expr),
+        StmtKind::Fnord => true,
         _ => false,
     }
 }
