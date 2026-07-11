@@ -2,39 +2,67 @@
 
 > Code at the edge of order.
 
-Eris is a small, statically-typed, expression-oriented programming language with a working LLVM backend. It is also an experiment in compiler design: building a language whose compiler exposes its internal model — grammar, type rules, scope, errors, idioms — through structured APIs, so that Large Language Models can reason about Eris programs with the same rigor as the compiler itself.
+## What this is
 
-This is a research project in early development.
+Eris is a small compiled language built for the pleasure of building it —
+and for the reader. It will not replace your systems language, and it is not
+trying to. It is trying to make you go *"ahhh, clever."*
 
-## Status
+Eris is a language of **deliberate acts**, dedicated to the goddess of
+discord. That is not a contradiction; it is the whole idea:
 
-**Version 0.8.0.** The language has a complete frontend (lexer → parser → semantic analyzer) and an LLVM IR backend that produces native binaries via `clang`. Programs can use built-in I/O (`print_int`, `print_str`, `print_bool`, `print_char`, `println`, `read_int`) and the standard control-flow constructs.
+- **Explicit typing.** Every variable carries a type annotation. No inference.
+- **Intentional mutability.** Bindings are immutable unless marked `mut`.
+- **Expression-oriented.** Blocks and `if` produce values; the trailing
+  expression of a block is its result.
+- **Order is the default — chaos is opt-in, and it must be earned.**
 
-The LLM-facing surface — structured diagnostics with stable error codes (`--format json`), a machine-readable language card (`schemas/language-card.json`), a verified cookbook (`schemas/cookbook.json`), and an LLM-grounded `--explain` flag — was built to test whether a compiler co-designed for models beats plain documentation. A pre-registered evaluation answered no (`eval/results/NEGATIVE.md`), the MCP server has been removed, and the project's direction has changed accordingly.
+## discord
 
-## Design principles
+Every language executes statements top to bottom, whether or not the order
+means anything. Eris lets you say when it doesn't:
 
-Eris is a language of **deliberate acts**. Three rules:
+    discord {
+        int width  := 4 * 5;
+        int height := 3 * 5;
+        int depth  := 2 * 5;
+    }
 
-- **Explicit typing.** Every variable carries a type annotation. There is no inference.
-- **Intentional mutability.** Bindings are immutable by default; use `mut` to opt in.
-- **Expression-oriented.** Blocks and `if` are expressions that produce values. The trailing expression of a block — written without a semicolon — is its result.
+Statements in a `discord` block have **no defined execution order**. In
+exchange, the compiler verifies they are independent — no statement may
+touch what another writes, and nothing with side effects may enter. The
+result: every order produces the same answer, so the chaos is provably
+unobservable. Eris only accepts freedom she can prove harmless.
 
-The point is to make the choices visible. You should be able to read a piece of Eris and know exactly what it does without inferring intent.
+If your chaos is impure, you'll hear about it:
 
-## A compiler designed for LLM collaboration
+    error: Statements in this discord block are not independent: more than one touches 'a'
+      --> examples/witnessed.eris:8:9
+      |
+    8 |         int b := a + 1;
+      |         ^ discord dependency
+      |
+      = hint: these statements share 'a', so their order matters — and
+              ordered chaos is no chaos at all. separate them
 
-Most compilers are designed for one audience: human programmers reading text errors. The terminal-rendered diagnostics, the prose documentation, the man-page-style help — all of it assumes the reader is human.
+Every error speaks in two registers: the message is surgical, the hint has
+had some wine. `--boring` silences the second register. The first is never
+compromised.
 
-The thesis behind Eris is that a compiler should also serve another audience: a model writing or reasoning about code in the language. That second audience needs different things:
+## fnord
 
-- **Structured errors with stable codes**, not just rendered text — so an automated fix loop can match on `E0203` instead of parsing English.
-- **A machine-readable language description** — so a model that has never seen Eris in its training data can write valid programs from a single document in its context.
-- **A tool-call interface to the compiler's internals** — so an agent can ask "what's in scope here?" or "would this expression typecheck?" with the same authority the compiler itself has.
-- **A curated cookbook of canonical examples**, every one verified to compile — so generated code can be grounded in tested patterns rather than hallucinated ones.
-- **An opinionated linter** — encoding what *idiomatic* Eris looks like, not just what compiles.
+`fnord;` marks the path that cannot be reached — and the return-checker
+believes you. If a running program ever reaches one, it prints
+`you saw the fnord.` and exits with code 5.
 
-Eris is being built deliberately along these lines. The compiler exists for humans; the surrounding tooling will exist for both. The work-in-progress lives in the commit history.
+## For whom
+
+Readers. Eris optimizes for the person looking at it, not a production
+deployment: a handful of jewel-box examples (`examples/`), error messages
+worth screenshotting, and a reference (`LANGUAGE.md`) short enough to
+actually read. If you only run one thing:
+
+    cargo run -p eris-cli -- examples/witnessed.eris
 
 ## Quick start
 

@@ -1,0 +1,11 @@
+-- This program does not compile. That is its purpose:
+-- run `eris examples/witnessed.eris` to meet E0228,
+-- and add --boring if you'd rather not hear the goddess.
+
+int main() {
+    discord {
+        int a := 1;
+        int b := a + 1;
+    }
+    return b;
+}

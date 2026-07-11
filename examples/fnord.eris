@@ -1,0 +1,17 @@
+-- fnord: the statement you were conditioned not to see.
+-- It marks a path that cannot be reached, and it satisfies the
+-- return checker on that path. If a running program ever reaches
+-- one, it prints "you saw the fnord." and exits with code 5.
+
+int classify(int x) {
+    if x > 0 { return 1; }
+    if x == 0 { return 0; }
+    if x < 0 { return -1; }
+    fnord;
+}
+
+int main() {
+    print_int(classify(-7));
+    println();
+    return 0;
+}

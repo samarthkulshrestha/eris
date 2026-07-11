@@ -1,0 +1,14 @@
+-- discord: statements with no defined order.
+-- Eris verifies they are independent, so any order gives the same answer —
+-- the chaos is real, but it can never be witnessed.
+
+int main() {
+    discord {
+        int width := 4 * 5;
+        int height := 3 * 5;
+        int depth := 2 * 5;
+    }
+    print_int(width * height * depth);
+    println();
+    return 0;
+}
