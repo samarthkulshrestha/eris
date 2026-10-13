@@ -4,22 +4,22 @@
 
 ## What this is
 
-Eris is a small compiled language built for the pleasure of building it —
-and for the reader. It will not replace your systems language, and it is not
-trying to. It is trying to make you go *"ahhh, clever."*
+Eris is a small compiled language built for the pleasure of building it, and
+for the reader. It will not replace your systems language. It is trying to
+make you go *"ahhh, clever."*
 
-Eris is a language of **deliberate acts**, dedicated to the goddess of
-discord. That is not a contradiction; it is the whole idea:
+Eris is a language of deliberate acts, dedicated to the goddess of discord.
+The rest of this page explains why that isn't a contradiction.
 
-- **Explicit typing.** Every variable carries a type annotation. No inference.
-- **Intentional mutability.** Bindings are immutable unless marked `mut`.
-- **Expression-oriented.** Blocks and `if` produce values; the trailing
-  expression of a block is its result.
-- **Order is the default — chaos is opt-in, and it must be earned.**
+Every variable carries a type annotation, and nothing is inferred. Bindings
+are immutable unless marked `mut`. Blocks and `if` produce values: the
+trailing expression of a block is its result.
+
+**Order is the default — chaos is opt-in, and it must be earned.**
 
 ## discord
 
-Every language executes statements top to bottom, whether or not the order
+Most languages execute statements top to bottom, whether or not the order
 means anything. Eris lets you say when it doesn't:
 
     discord {
@@ -29,7 +29,7 @@ means anything. Eris lets you say when it doesn't:
     }
 
 Statements in a `discord` block have **no defined execution order**. In
-exchange, the compiler verifies they are independent — no statement may
+exchange, the compiler verifies they are independent: no statement may
 touch what another writes, and nothing with side effects may enter. The
 result: every order produces the same answer, so the chaos is provably
 unobservable. Eris only accepts freedom she can prove harmless.
@@ -57,8 +57,8 @@ believes you. If a running program ever reaches one, it prints
 
 ## For whom
 
-Readers. Eris optimizes for the person looking at it, not a production
-deployment: a handful of jewel-box examples (`examples/`), error messages
+Readers. Eris optimizes for the person looking at it: a handful of short
+examples (`examples/`), error messages
 worth screenshotting, and a reference (`LANGUAGE.md`) short enough to
 actually read. If you only run one thing:
 
@@ -140,7 +140,7 @@ crates/
 examples/            sample programs
 ```
 
-The compiler is a library first. The evaluation harness lives in `eval/` (Python).
+The compiler is a library first.
 
 ## Development
 
@@ -159,7 +159,7 @@ A regex-based syntax-highlighting file for Vim/Neovim lives at `editor/vim/`. To
 set runtimepath^=/path/to/eris/editor/vim
 ```
 
-That picks up the syntax file (`syntax/eris.vim`) and the filetype detection (`ftdetect/eris.vim` — associates `*.eris` with the `eris` filetype).
+That picks up the syntax file (`syntax/eris.vim`) and the filetype detection (`ftdetect/eris.vim`, which associates `*.eris` with the `eris` filetype).
 
 ## License
 
